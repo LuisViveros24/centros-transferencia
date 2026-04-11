@@ -297,17 +297,34 @@
     <!-- DASHBOARD -->
     <div id="page-dashboard" class="page">
       <div class="page-title">Dashboard</div>
-      <div class="page-sub">Flujo de viajes de hoy vs histórico por PGA.</div>
+      <div class="page-sub">Flujo de viajes por PGA en el periodo seleccionado.</div>
+
+      <!-- Barra de filtros -->
+      <div class="card" style="margin-bottom:16px;padding:14px 18px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.05em">Periodo:</span>
+          <button class="btn btn-ghost" style="padding:5px 12px;border-radius:20px;font-size:12px" onclick="setRapido('hoy')">Hoy</button>
+          <button class="btn btn-ghost" style="padding:5px 12px;border-radius:20px;font-size:12px" onclick="setRapido('semana')">Esta semana</button>
+          <button class="btn btn-ghost" style="padding:5px 12px;border-radius:20px;font-size:12px" onclick="setRapido('mes')">Este mes</button>
+          <div style="display:flex;align-items:center;gap:6px;margin-left:4px">
+            <span style="font-size:12px;color:var(--text2)">Desde</span>
+            <input type="date" id="d-desde" style="font-size:12px;padding:4px 8px;width:auto"/>
+            <span style="font-size:12px;color:var(--text2)">Hasta</span>
+            <input type="date" id="d-hasta" style="font-size:12px;padding:4px 8px;width:auto"/>
+            <button class="btn btn-primary" style="padding:5px 14px;font-size:12px" onclick="renderDashboard()">Ver</button>
+          </div>
+        </div>
+      </div>
 
       <div class="metrics-grid">
-        <div class="metric-card blue"><div class="metric-label">Entradas hoy</div><div class="metric-value" id="d-ent">—</div><div class="metric-sub">viajes</div></div>
-        <div class="metric-card green"><div class="metric-label">Salidas hoy</div><div class="metric-value" id="d-sal">—</div><div class="metric-sub">volteos</div></div>
-        <div class="metric-card"><div class="metric-label">Balance pendiente</div><div class="metric-value" id="d-bal">—</div><div class="metric-sub">sin recolectar hoy</div></div>
+        <div class="metric-card blue"><div class="metric-label">Entradas del periodo</div><div class="metric-value" id="d-ent">—</div><div class="metric-sub">viajes</div></div>
+        <div class="metric-card green"><div class="metric-label">Salidas del periodo</div><div class="metric-value" id="d-sal">—</div><div class="metric-sub">volteos</div></div>
+        <div class="metric-card"><div class="metric-label">Balance pendiente</div><div class="metric-value" id="d-bal">—</div><div class="metric-sub">sin recolectar</div></div>
         <div class="metric-card"><div class="metric-label">Total histórico</div><div class="metric-value" id="d-tot">—</div><div class="metric-sub">registros</div></div>
       </div>
       <div class="metrics-grid">
-        <div class="metric-card blue"><div class="metric-label">m³ entrada hoy</div><div class="metric-value" id="d-m3-eh">—</div><div class="metric-sub">metros cúbicos</div></div>
-        <div class="metric-card green"><div class="metric-label">m³ salida hoy</div><div class="metric-value" id="d-m3-sh">—</div><div class="metric-sub">metros cúbicos</div></div>
+        <div class="metric-card blue"><div class="metric-label">m³ entrada periodo</div><div class="metric-value" id="d-m3-eh">—</div><div class="metric-sub">metros cúbicos</div></div>
+        <div class="metric-card green"><div class="metric-label">m³ salida periodo</div><div class="metric-value" id="d-m3-sh">—</div><div class="metric-sub">metros cúbicos</div></div>
         <div class="metric-card"><div class="metric-label">m³ entrada total</div><div class="metric-value" id="d-m3-et">—</div><div class="metric-sub">histórico</div></div>
         <div class="metric-card"><div class="metric-label">m³ salida total</div><div class="metric-value" id="d-m3-st">—</div><div class="metric-sub">histórico</div></div>
       </div>
@@ -330,12 +347,12 @@
       </div>
 
       <div class="card">
-        <div class="card-label">Historial diario — últimos 14 días</div>
+        <div class="card-label">Historial diario — periodo seleccionado</div>
         <div class="chart-container"><canvas id="ch-hist"></canvas></div>
       </div>
 
       <div class="card">
-        <div class="card-label">Registros por origen — histórico</div>
+        <div class="card-label">Orígenes (acumulado total)</div>
         <div id="origen-counts" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:4px"></div>
       </div>
 
@@ -422,7 +439,11 @@ function goTo(page, btn) {
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   if (btn) btn.classList.add('active');
-  if (page === 'dashboard') renderDashboard();
+  if (page === 'dashboard') {
+    // Primera visita: inputs vacíos → inicializar con Hoy
+    if (!document.getElementById('d-desde').value) setRapido('hoy');
+    else renderDashboard();
+  }
   if (page === 'historial') renderHistorial();
 }
 
@@ -449,7 +470,47 @@ function toggleOtroE(sel) {
   const w = document.getElementById('e-otro-wrap');
   sel.value === 'OTRO' ? w.classList.add('vis') : w.classList.remove('vis');
 }
-function todayStr() { return new Date().toISOString().split('T')[0]; }
+// Convierte Date a string YYYY-MM-DD en hora LOCAL (no UTC, evita bug en UTC-6)
+function dateToLocalStr(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+function todayStr() { return dateToLocalStr(new Date()); }
+
+// Parsea string YYYY-MM-DD a Date en hora local (no UTC — evita desfase de zona horaria)
+function parseDateLocal(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+// Rellena los inputs d-desde / d-hasta y llama renderDashboard()
+function setRapido(tipo) {
+  const hoy = new Date();
+  let desde, hasta;
+
+  if (tipo === 'hoy') {
+    desde = hasta = todayStr();
+
+  } else if (tipo === 'semana') {
+    const lunes = new Date(hoy);
+    lunes.setDate(hoy.getDate() - ((hoy.getDay() + 6) % 7));
+    const domingo = new Date(lunes);
+    domingo.setDate(lunes.getDate() + 6);
+    desde = dateToLocalStr(lunes);
+    hasta  = dateToLocalStr(domingo);
+
+  } else if (tipo === 'mes') {
+    desde = hoy.getFullYear() + '-' +
+            String(hoy.getMonth() + 1).padStart(2, '0') + '-01';
+    const ultimo = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+    hasta = dateToLocalStr(ultimo);
+  }
+
+  document.getElementById('d-desde').value = desde;
+  document.getElementById('d-hasta').value  = hasta;
+  renderDashboard();
+}
 function nowTime() {
   const d = new Date();
   return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
@@ -564,16 +625,18 @@ async function updateNavBadges() {
 // ── Dashboard ──────────────────────────────────────────────────
 async function renderDashboard() {
   try {
-    const d = await api('/api/dashboard?fecha=' + todayStr());
+    const desde = document.getElementById('d-desde').value || todayStr();
+    const hasta  = document.getElementById('d-hasta').value  || todayStr();
+    const d = await api('/api/dashboard?desde=' + desde + '&hasta=' + hasta);
 
-    document.getElementById('d-ent').textContent   = d.ent_hoy;
-    document.getElementById('d-sal').textContent   = d.sal_hoy;
-    document.getElementById('d-bal').textContent   = d.balance;
-    document.getElementById('d-tot').textContent   = d.total;
-    document.getElementById('d-m3-eh').textContent = d.m3_ent_hoy.toFixed(2);
-    document.getElementById('d-m3-sh').textContent = d.m3_sal_hoy.toFixed(2);
-    document.getElementById('d-m3-et').textContent = d.m3_ent_tot.toFixed(2);
-    document.getElementById('d-m3-st').textContent = d.m3_sal_tot.toFixed(2);
+    document.getElementById('d-ent').textContent    = d.ent_periodo;
+    document.getElementById('d-sal').textContent    = d.sal_periodo;
+    document.getElementById('d-bal').textContent    = d.balance;
+    document.getElementById('d-tot').textContent    = d.total;
+    document.getElementById('d-m3-eh').textContent  = d.m3_ent_periodo.toFixed(2);
+    document.getElementById('d-m3-sh').textContent  = d.m3_sal_periodo.toFixed(2);
+    document.getElementById('d-m3-et').textContent  = d.m3_ent_tot.toFixed(2);
+    document.getElementById('d-m3-st').textContent  = d.m3_sal_tot.toFixed(2);
 
     // PGA flow (viajes)
     document.getElementById('pga-flow').innerHTML = d.pga_flow.map(p =>
@@ -633,28 +696,40 @@ async function renderDashboard() {
                  x:{ ticks:{ font:{ size:11 }}, grid:{ display:false }}}}
     });
 
-    // Chart historial
-    const allDays = [];
-    for (let i=13;i>=0;i--) {
-      const dd = new Date(); dd.setDate(dd.getDate()-i);
-      allDays.push(dd.toISOString().split('T')[0]);
-    }
+    // Chart historial — eje X dinámico desde el rango seleccionado
     const histMap = {};
-    d.historial.forEach(h => { histMap[h.fecha] = h; });
-    const dayLabels = allDays.map(dd => { const p=dd.split('-'); return p[2]+'/'+p[1]; });
-    const entByDay  = allDays.map(dd => histMap[dd] ? histMap[dd].entradas : 0);
-    const salByDay  = allDays.map(dd => histMap[dd] ? histMap[dd].salidas  : 0);
+    d.historial.forEach(h => {
+      const key = typeof h.fecha === 'string' ? h.fecha.slice(0, 10) : h.fecha;
+      histMap[key] = h;
+    });
+
+    const allDays = [];
+    const cur = parseDateLocal(desde);
+    const end = parseDateLocal(hasta);
+    while (cur <= end) {
+      allDays.push(dateToLocalStr(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    const dayLabels = allDays.map(dd => { const p = dd.split('-'); return p[2] + '/' + p[1]; });
+    const entByDay  = allDays.map(dd => histMap[dd] ? Number(histMap[dd].entradas) : 0);
+    const salByDay  = allDays.map(dd => histMap[dd] ? Number(histMap[dd].salidas)  : 0);
+
     if (chHist) chHist.destroy();
     chHist = new Chart(document.getElementById('ch-hist'), {
-      type: 'line',
+      type: 'bar',
       data: { labels: dayLabels, datasets: [
-        { label:'Entradas', data: entByDay, borderColor:'#1a6fc4', backgroundColor:'rgba(26,111,196,.1)', tension:.3, fill:true, pointRadius:3 },
-        { label:'Salidas',  data: salByDay, borderColor:'#0f7a54', backgroundColor:'rgba(15,122,84,.08)',  tension:.3, fill:true, pointRadius:3 }
+        { label:'Entradas', data: entByDay, backgroundColor:'#1a6fc4', borderRadius:4, borderSkipped:false },
+        { label:'Salidas',  data: salByDay, backgroundColor:'#0f7a54', borderRadius:4, borderSkipped:false }
       ]},
-      options: { responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ display:false }},
-        scales:{ y:{ ticks:{ stepSize:1 }, beginAtZero:true, grid:{ color:'rgba(128,128,128,.08)' }},
-                 x:{ ticks:{ font:{ size:11 }, maxRotation:45 }, grid:{ display:false }}}}
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { ticks: { stepSize: 1 }, beginAtZero: true, grid: { color: 'rgba(128,128,128,.08)' } },
+          x: { ticks: { font: { size: 11 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 31 },
+               grid: { display: false } }
+        }
+      }
     });
 
     // Origen counts
