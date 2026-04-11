@@ -71,3 +71,7 @@ class TestAuth:
     def test_export_sin_auth_devuelve_401(self, client):
         r = client.get('/api/export/excel')
         assert r.status_code == 401
+
+    def test_post_registros_sin_auth_devuelve_401(self, client):
+        r = client.post('/api/registros', json={})
+        assert r.status_code == 401
