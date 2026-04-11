@@ -78,3 +78,21 @@ class TestDashboardNuevosParametros:
         assert 'balance' in data
         assert 'total' in data
         assert data['balance'] >= 0
+
+    def test_dashboard_fecha_invalida_devuelve_400(self, client):
+        """Formato de fecha inválido debe retornar 400."""
+        with patch('app.get_db', return_value=fake_db()):
+            r = client.get('/api/dashboard?desde=no-es-fecha&hasta=2026-04-11', headers=AUTH)
+        assert r.status_code == 400
+
+    def test_dashboard_rango_invertido_devuelve_400(self, client):
+        """desde > hasta debe retornar 400."""
+        with patch('app.get_db', return_value=fake_db()):
+            r = client.get('/api/dashboard?desde=2026-04-11&hasta=2026-04-01', headers=AUTH)
+        assert r.status_code == 400
+
+    def test_dashboard_mismo_dia_desde_hasta_ok(self, client):
+        """desde == hasta (un solo día) debe funcionar."""
+        with patch('app.get_db', return_value=fake_db()):
+            r = client.get('/api/dashboard?desde=2026-04-11&hasta=2026-04-11', headers=AUTH)
+        assert r.status_code == 200

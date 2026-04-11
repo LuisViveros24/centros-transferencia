@@ -168,8 +168,17 @@ def eliminar_registro(rid):
 @app.route('/api/dashboard', methods=['GET'])
 @requiere_auth
 def dashboard():
-    desde = request.args.get('desde', str(date.today()))
-    hasta  = request.args.get('hasta',  str(date.today()))
+    _today = str(date.today())
+    desde = request.args.get('desde', _today)
+    hasta  = request.args.get('hasta',  _today)
+    # Validate date format; fall back to today on bad input
+    for _s in (desde, hasta):
+        try:
+            datetime.strptime(_s, '%Y-%m-%d')
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Formato de fecha inválido. Use YYYY-MM-DD'}), 400
+    if desde > hasta:
+        return jsonify({'error': 'desde debe ser anterior o igual a hasta'}), 400
     conn = get_db()
     try:
         with conn:
