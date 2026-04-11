@@ -168,7 +168,8 @@ def eliminar_registro(rid):
 @app.route('/api/dashboard', methods=['GET'])
 @requiere_auth
 def dashboard():
-    hoy = request.args.get('fecha', str(date.today()))
+    desde = request.args.get('desde', str(date.today()))
+    hasta  = request.args.get('hasta',  str(date.today()))
     conn = get_db()
     try:
         with conn:
@@ -180,21 +181,37 @@ def dashboard():
                     cur.execute(sql, p or [])
                     return cur.fetchall()
 
-                ent_hoy = q("SELECT COUNT(*) c FROM registros WHERE fecha=%s AND tipo='ENTRADA'", [hoy])['c']
-                sal_hoy = q("SELECT COUNT(*) c FROM registros WHERE fecha=%s AND tipo='SALIDA'",  [hoy])['c']
-                tot     = q("SELECT COUNT(*) c FROM registros")['c']
-                m3_eh   = q("SELECT COALESCE(SUM(m3),0) v FROM registros WHERE fecha=%s AND tipo='ENTRADA'", [hoy])['v']
-                m3_sh   = q("SELECT COALESCE(SUM(m3),0) v FROM registros WHERE fecha=%s AND tipo='SALIDA'",  [hoy])['v']
-                m3_et   = q("SELECT COALESCE(SUM(m3),0) v FROM registros WHERE tipo='ENTRADA'")['v']
-                m3_st   = q("SELECT COALESCE(SUM(m3),0) v FROM registros WHERE tipo='SALIDA'")['v']
+                ent_periodo = q(
+                    "SELECT COUNT(*) c FROM registros WHERE fecha BETWEEN %s AND %s AND tipo='ENTRADA'",
+                    [desde, hasta])['c']
+                sal_periodo = q(
+                    "SELECT COUNT(*) c FROM registros WHERE fecha BETWEEN %s AND %s AND tipo='SALIDA'",
+                    [desde, hasta])['c']
+                tot    = q("SELECT COUNT(*) c FROM registros")['c']
+                m3_ep  = q(
+                    "SELECT COALESCE(SUM(m3),0) v FROM registros WHERE fecha BETWEEN %s AND %s AND tipo='ENTRADA'",
+                    [desde, hasta])['v']
+                m3_sp  = q(
+                    "SELECT COALESCE(SUM(m3),0) v FROM registros WHERE fecha BETWEEN %s AND %s AND tipo='SALIDA'",
+                    [desde, hasta])['v']
+                m3_et  = q("SELECT COALESCE(SUM(m3),0) v FROM registros WHERE tipo='ENTRADA'")['v']
+                m3_st  = q("SELECT COALESCE(SUM(m3),0) v FROM registros WHERE tipo='SALIDA'")['v']
 
                 pgas = ['ROVIROSA WADE', 'LEY SAULO', 'ESTERITO', 'RECOVERDE', 'COMPRESORA']
                 pga_flow = []
                 for p in pgas:
-                    ei  = q("SELECT COUNT(*) c FROM registros WHERE fecha=%s AND tipo='ENTRADA' AND pga=%s", [hoy, p])['c']
-                    so  = q("SELECT COUNT(*) c FROM registros WHERE fecha=%s AND tipo='SALIDA'  AND pga=%s", [hoy, p])['c']
-                    m3i = q("SELECT COALESCE(SUM(m3),0) v FROM registros WHERE fecha=%s AND tipo='ENTRADA' AND pga=%s", [hoy, p])['v']
-                    m3o = q("SELECT COALESCE(SUM(m3),0) v FROM registros WHERE fecha=%s AND tipo='SALIDA'  AND pga=%s", [hoy, p])['v']
+                    ei  = q(
+                        "SELECT COUNT(*) c FROM registros WHERE fecha BETWEEN %s AND %s AND tipo='ENTRADA' AND pga=%s",
+                        [desde, hasta, p])['c']
+                    so  = q(
+                        "SELECT COUNT(*) c FROM registros WHERE fecha BETWEEN %s AND %s AND tipo='SALIDA'  AND pga=%s",
+                        [desde, hasta, p])['c']
+                    m3i = q(
+                        "SELECT COALESCE(SUM(m3),0) v FROM registros WHERE fecha BETWEEN %s AND %s AND tipo='ENTRADA' AND pga=%s",
+                        [desde, hasta, p])['v']
+                    m3o = q(
+                        "SELECT COALESCE(SUM(m3),0) v FROM registros WHERE fecha BETWEEN %s AND %s AND tipo='SALIDA'  AND pga=%s",
+                        [desde, hasta, p])['v']
                     pga_flow.append({
                         'pga': p, 'ent': ei, 'sal': so,
                         'm3_ent': round(float(m3i), 2),
@@ -223,16 +240,16 @@ def dashboard():
                            SUM(CASE WHEN tipo='ENTRADA' THEN 1 ELSE 0 END) entradas,
                            SUM(CASE WHEN tipo='SALIDA'  THEN 1 ELSE 0 END) salidas
                     FROM registros
-                    WHERE fecha >= (%s::date - INTERVAL '13 days')
+                    WHERE fecha BETWEEN %s AND %s
                     GROUP BY fecha ORDER BY fecha
-                """, [hoy])
+                """, [desde, hasta])
     finally:
         conn.close()
 
     return jsonify({
-        'ent_hoy': ent_hoy, 'sal_hoy': sal_hoy,
-        'balance': max(0, ent_hoy - sal_hoy), 'total': tot,
-        'm3_ent_hoy': round(float(m3_eh), 2), 'm3_sal_hoy': round(float(m3_sh), 2),
+        'ent_periodo': ent_periodo, 'sal_periodo': sal_periodo,
+        'balance': max(0, ent_periodo - sal_periodo), 'total': tot,
+        'm3_ent_periodo': round(float(m3_ep), 2), 'm3_sal_periodo': round(float(m3_sp), 2),
         'm3_ent_tot': round(float(m3_et), 2), 'm3_sal_tot': round(float(m3_st), 2),
         'pga_flow': pga_flow,
         'origen_counts': origen_counts,
