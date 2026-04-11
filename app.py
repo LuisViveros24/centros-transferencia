@@ -79,7 +79,10 @@ def next_folio(tipo, cur):
     cur.execute(
         "SELECT valor FROM config WHERE clave='folio_base' FOR UPDATE"
     )
-    n = int(cur.fetchone()['valor'])
+    row = cur.fetchone()
+    if row is None:
+        raise RuntimeError("Falta la fila 'folio_base' en la tabla config")
+    n = int(row['valor'])
     prefix = 'ENT-' if tipo == 'ENTRADA' else 'SAL-'
     folio = prefix + str(n).zfill(4)
     cur.execute(
@@ -119,6 +122,8 @@ def get_registros():
 @requiere_auth
 def crear_registro():
     d = request.get_json()
+    if not d:
+        return jsonify({'error': 'JSON requerido'}), 400
     conn = get_db()
     try:
         with conn:
@@ -154,6 +159,8 @@ def eliminar_registro(rid):
         with conn:
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM registros WHERE id=%s", (rid,))
+                if cur.rowcount == 0:
+                    return jsonify({'error': 'Registro no encontrado'}), 404
     finally:
         conn.close()
     return jsonify({'ok': True})
