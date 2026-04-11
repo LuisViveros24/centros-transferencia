@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Centros de Transferencia — Control de Viajes</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg:#ffffff; --bg2:#f5f5f3; --bg3:#efefec;
+    --text:#1a1a18; --text2:#6b6b67; --text3:#9b9b96;
+    --border:rgba(0,0,0,0.1); --border2:rgba(0,0,0,0.18);
+    --blue:#1a6fc4; --blue-bg:#e8f1fb; --blue-text:#0c4a8a;
+    --green:#0f7a54; --green-bg:#e2f5ec; --green-text:#0a5238;
+    --red:#c43a2a; --red-bg:#fcecea; --red-text:#8a1f14;
+    --radius:8px; --radius-lg:12px;
+    --shadow:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.04);
+    --font:'Segoe UI',system-ui,-apple-system,sans-serif;
+    --mono:'Cascadia Code','Consolas',monospace;
+  }
+  @media(prefers-color-scheme:dark){
+    :root{
+      --bg:#1e1e1c; --bg2:#2a2a28; --bg3:#323230;
+      --text:#e8e8e4; --text2:#a0a09b; --text3:#6e6e6a;
+      --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14);
+      --blue:#5a9fe0; --blue-bg:#0e2540; --blue-text:#8ec4f5;
+      --green:#3db882; --green-bg:#0a2e1f; --green-text:#6ddba8;
+      --red:#e06050; --red-bg:#2e100c; --red-text:#f09080;
+    }
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html{font-size:15px}
+  body{font-family:var(--font);background:var(--bg3);color:var(--text);min-height:100vh}
+
+  /* topbar */
+  .topbar{background:var(--bg);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;gap:16px;height:56px;position:sticky;top:0;z-index:100}
+  .hico{width:32px;height:32px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .hico svg{width:16px;height:16px;stroke:var(--text2)}
+  .topbar-title{font-size:14px;font-weight:600}
+  .topbar-sub{font-size:12px;color:var(--text2)}
+  .topbar-date{margin-left:auto;font-size:12px;color:var(--text2);background:var(--bg2);border:1px solid var(--border);padding:4px 12px;border-radius:var(--radius)}
+  .conn-dot{width:8px;height:8px;border-radius:50%;background:#ccc;flex-shrink:0;transition:background .3s}
+  .conn-dot.ok{background:var(--green)}
+  .conn-dot.err{background:var(--red)}
+
+  /* layout */
+  .main{display:flex;height:calc(100vh - 56px)}
+  .sidebar{width:200px;flex-shrink:0;background:var(--bg);border-right:1px solid var(--border);padding:16px 10px;display:flex;flex-direction:column;gap:4px}
+  .sidebar-section{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);padding:8px 10px 4px;margin-top:8px}
+  .sidebar-section:first-child{margin-top:0}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius);font-size:13px;color:var(--text2);cursor:pointer;border:none;background:transparent;width:100%;text-align:left;font-family:var(--font);transition:background .12s,color .12s}
+  .nav-item:hover{background:var(--bg2);color:var(--text)}
+  .nav-item.active{background:var(--blue-bg);color:var(--blue-text);font-weight:500}
+  .nav-item svg{width:15px;height:15px;flex-shrink:0}
+  .nav-item .nbadge{margin-left:auto;font-size:10px;background:var(--blue);color:white;padding:1px 6px;border-radius:10px;min-width:18px;text-align:center}
+
+  /* content */
+  .content{flex:1;overflow-y:auto;padding:24px;background:var(--bg3)}
+  .page{display:none}.page.active{display:block}
+  .page-title{font-size:18px;font-weight:600;margin-bottom:4px}
+  .page-sub{font-size:13px;color:var(--text2);margin-bottom:20px}
+
+  /* cards */
+  .card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+  .card-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:14px}
+
+  /* pga selector */
+  .pga-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+  .pga-btn{padding:10px 6px;font-size:11px;font-weight:500;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-family:var(--font);color:var(--text2);transition:all .12s;text-align:center;line-height:1.3}
+  .pga-btn:hover{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+  .pga-btn.sel{background:var(--blue-bg);border-color:var(--blue);color:var(--blue-text);font-weight:600}
+
+  /* forms */
+  .form-grid{display:grid;gap:14px}
+  .cols-3{grid-template-columns:1fr 1fr 1fr}.cols-2{grid-template-columns:1fr 1fr}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field label{font-size:12px;color:var(--text2);font-weight:500;display:flex;align-items:center;gap:3px}
+  .req{color:var(--red);font-size:13px}
+  input,select,textarea{font-family:var(--font);font-size:13px;color:var(--text);background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius);padding:8px 10px;width:100%;outline:none;transition:border-color .15s,box-shadow .15s;appearance:auto}
+  input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,111,196,.12)}
+  textarea{resize:vertical;min-height:72px;line-height:1.5}
+  .otro-wrap{display:none;margin-top:8px;flex-direction:column;gap:5px}
+  .otro-wrap.vis{display:flex}
+  .char-count{font-size:11px;color:var(--text3);text-align:right}
+
+  /* buttons */
+  .btn-row{display:flex;gap:10px;justify-content:flex-end;padding-top:4px}
+  .btn{padding:9px 18px;border-radius:var(--radius);font-size:13px;font-weight:500;cursor:pointer;font-family:var(--font);transition:all .12s;border:1px solid transparent}
+  .btn-ghost{background:transparent;border-color:var(--border2);color:var(--text2)}.btn-ghost:hover{background:var(--bg2);color:var(--text)}
+  .btn-primary{background:var(--blue);color:white;border-color:var(--blue)}.btn-primary:hover{opacity:.88}.btn-primary:active{transform:scale(.98)}
+  .btn-success{background:var(--green);color:white;border-color:var(--green)}.btn-success:hover{opacity:.88}
+  .btn-danger{background:transparent;border-color:var(--red);color:var(--red)}.btn-danger:hover{background:var(--red-bg)}
+
+  /* metrics */
+  .metrics-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:20px}
+  .metric-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow)}
+  .metric-label{font-size:11px;color:var(--text2);font-weight:500;margin-bottom:6px}
+  .metric-value{font-size:28px;font-weight:700;color:var(--text);line-height:1}
+  .metric-sub{font-size:11px;color:var(--text3);margin-top:4px}
+  .metric-card.blue .metric-value{color:var(--blue)}.metric-card.green .metric-value{color:var(--green)}
+
+  /* pga flow */
+  .pga-flow-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:20px}
+  .pga-flow-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 10px;text-align:center;box-shadow:var(--shadow)}
+  .pga-flow-name{font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;min-height:28px;display:flex;align-items:center;justify-content:center;line-height:1.2;margin-bottom:10px}
+  .pga-flow-nums{display:flex;gap:4px;justify-content:center;align-items:baseline}
+  .num-in{font-size:22px;font-weight:700;color:var(--blue)}
+  .num-sep{font-size:14px;color:var(--text3)}
+  .num-out{font-size:22px;font-weight:700;color:var(--green)}
+  .pga-flow-sub{font-size:10px;color:var(--text3);margin-top:6px}
+  .legend{display:flex;gap:16px;margin-bottom:14px}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)}
+  .legend-dot{width:8px;height:8px;border-radius:50%}
+
+  /* chart */
+  .chart-container{position:relative;width:100%;height:240px}
+
+  /* table */
+  .table-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px}
+  .table-title{font-size:14px;font-weight:600}
+  .table-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .count-pill{font-size:11px;background:var(--bg2);border:1px solid var(--border);padding:3px 10px;border-radius:20px;color:var(--text2)}
+  .table-wrap{border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow)}
+  .table-scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:12px;min-width:780px}
+  thead th{background:var(--bg2);font-weight:600;color:var(--text2);padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  tbody td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover td{background:var(--bg2)}
+  .empty-state{text-align:center;padding:40px 20px;color:var(--text2);font-size:13px}
+
+  /* badges */
+  .badge{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;letter-spacing:.03em}
+  .badge-in{background:var(--blue-bg);color:var(--blue-text)}
+  .badge-out{background:var(--green-bg);color:var(--green-text)}
+  .mono{font-family:var(--mono);font-size:11px;color:var(--text2)}
+
+  /* toast */
+  #toast{position:fixed;bottom:24px;right:24px;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:var(--radius);font-size:13px;z-index:9999;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none;white-space:nowrap}
+  #toast.show{opacity:1;transform:translateY(0)}
+
+  /* loading */
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--blue);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  @media(max-width:900px){.sidebar{width:160px}.pga-grid,.pga-flow-grid{grid-template-columns:repeat(3,1fr)}.metrics-grid{grid-template-columns:repeat(2,1fr)}.cols-3{grid-template-columns:1fr 1fr}}
+  @media(max-width:640px){.sidebar{display:none}.content{padding:16px}.cols-2,.cols-3{grid-template-columns:1fr}.pga-grid{grid-template-columns:repeat(2,1fr)}.pga-flow-grid{grid-template-columns:repeat(2,1fr)}.metrics-grid{grid-template-columns:repeat(2,1fr)}}
+
+  @media print{
+    body{background:white}
+    .topbar,.sidebar,#toast,.btn-row,.table-actions{display:none!important}
+    .main{display:block;height:auto}.content{padding:0}
+    .page{display:block!important}
+    .card{box-shadow:none;border:1px solid #ddd;break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="hico">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor"/>
+      <polyline points="9 22 9 12 15 12 15 22" stroke="currentColor"/>
+    </svg>
+  </div>
+  <div>
+    <div class="topbar-title">Centros de Transferencia</div>
+    <div class="topbar-sub">Control de flujo de viajes</div>
+  </div>
+  <div class="conn-dot" id="conn-dot" title="Estado del servidor"></div>
+  <div class="topbar-date" id="topbar-date"></div>
+</div>
+
+<div class="main">
+  <nav class="sidebar">
+    <div class="sidebar-section">Captura</div>
+    <button class="nav-item active" onclick="goTo('entrada',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7-7 7 7"/></svg>
+      Entrada
+      <span class="nbadge" id="nav-badge-in">0</span>
+    </button>
+    <button class="nav-item" onclick="goTo('salida',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7 7 7-7"/></svg>
+      Salida
+      <span class="nbadge" id="nav-badge-out" style="background:var(--green)">0</span>
+    </button>
+    <div class="sidebar-section">Análisis</div>
+    <button class="nav-item" onclick="goTo('dashboard',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </button>
+    <button class="nav-item" onclick="goTo('historial',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+      Historial
+    </button>
+  </nav>
+
+  <main class="content">
+
+    <!-- ENTRADA -->
+    <div id="page-entrada" class="page active">
+      <div class="page-title">Registro de entrada</div>
+      <div class="page-sub">Selecciona el PGA que recibe el material, luego completa los datos del viaje.</div>
+      <div class="card">
+        <div class="card-label">Paso 1 — PGA que recibe</div>
+        <div class="pga-grid" id="pga-sel-e"></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Paso 2 — Datos del viaje</div>
+        <div class="form-grid cols-3" style="margin-bottom:14px">
+          <div class="field"><label><span class="req">*</span> Fecha</label><input type="date" id="e-fecha"/></div>
+          <div class="field"><label>Hora</label><input type="time" id="e-hora"/></div>
+          <div class="field"><label><span class="req">*</span> Origen</label>
+            <select id="e-origen">
+              <option value="">— Seleccionar —</option>
+              <option>NEGOCIO</option><option>RECOLECTORES</option><option>CASA-HABITACIÓN</option>
+              <option>PASA</option><option>LA OLA</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid cols-3">
+          <div class="field"><label>Tipo de vehículo</label>
+            <select id="e-vehiculo">
+              <option value="">— Seleccionar —</option>
+              <option>CARROMATO</option><option>MOTOCARRO</option><option>VEHÍCULO PARTICULAR</option>
+              <option>VEHÍCULO PÚBLICO</option><option>CONTRATISTAS</option>
+            </select>
+          </div>
+          <div class="field"><label>Tipo de carga</label>
+            <select id="e-carga" onchange="toggleOtroE(this)">
+              <option value="">— Seleccionar —</option>
+              <option>ESCOMBRO</option><option>CACHARROS</option><option>DESECHO VEGETAL</option>
+              <option>BASURA DOMÉSTICA</option><option value="OTRO">OTRO</option>
+            </select>
+            <div class="otro-wrap" id="e-otro-wrap">
+              <input type="text" id="e-otro-txt" placeholder="Especifica el tipo..." maxlength="60"
+                oninput="document.getElementById('e-ctr').textContent=this.value.length+'/60'"/>
+              <div class="char-count" id="e-ctr">0/60</div>
+            </div>
+          </div>
+          <div class="field"><label>Colonia de origen</label><input type="text" id="e-colonia" placeholder="Ej. Col. Centro..."/></div>
+        </div>
+        <div class="form-grid cols-2" style="margin-top:14px">
+          <div class="field"><label>Placa</label><input type="text" id="e-placa" placeholder="Ej. ABC-123-D" maxlength="20" style="text-transform:uppercase"/></div>
+          <div class="field"><label>Metros cúbicos (m³)</label><input type="number" id="e-m3" placeholder="0.00" min="0" step="0.01"/></div>
+        </div>
+        <div class="field" style="margin-top:14px"><label>Observaciones</label>
+          <textarea id="e-obs" maxlength="300" placeholder="Notas adicionales..."
+            oninput="document.getElementById('e-obs-ctr').textContent=this.value.length+'/300'"></textarea>
+          <div class="char-count" id="e-obs-ctr">0/300</div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="limpiarE()">Limpiar</button>
+        <button class="btn btn-primary" id="btn-registrar-e" onclick="registrarEntrada()">Registrar entrada</button>
+      </div>
+    </div>
+
+    <!-- SALIDA -->
+    <div id="page-salida" class="page">
+      <div class="page-title">Registro de salida — Recolección</div>
+      <div class="page-sub">Registra cada viaje de volteo que sale con material recolectado.</div>
+      <div class="card">
+        <div class="card-label">Paso 1 — PGA que despacha</div>
+        <div class="pga-grid" id="pga-sel-s"></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Paso 2 — Datos del viaje de recolección</div>
+        <div class="form-grid cols-3">
+          <div class="field"><label><span class="req">*</span> Fecha</label><input type="date" id="s-fecha"/></div>
+          <div class="field"><label>Hora de salida</label><input type="time" id="s-hora"/></div>
+          <div class="field"><label>Tipo de volteo</label>
+            <select id="s-volteo">
+              <option value="">— Seleccionar —</option>
+              <option>VOLTEO CHICO</option><option>VOLTEO MEDIANO</option>
+              <option>VOLTEO GRANDE</option><option>OTRO</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid cols-2" style="margin-top:14px">
+          <div class="field"><label>Placa</label><input type="text" id="s-placa" placeholder="Ej. ABC-123-D" maxlength="20" style="text-transform:uppercase"/></div>
+          <div class="field"><label>Metros cúbicos (m³)</label><input type="number" id="s-m3" placeholder="0.00" min="0" step="0.01"/></div>
+        </div>
+        <div class="field" style="margin-top:14px"><label>Observaciones</label>
+          <textarea id="s-obs" maxlength="300" placeholder="Notas del viaje..."
+            oninput="document.getElementById('s-obs-ctr').textContent=this.value.length+'/300'"></textarea>
+          <div class="char-count" id="s-obs-ctr">0/300</div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="limpiarS()">Limpiar</button>
+        <button class="btn btn-success" id="btn-registrar-s" onclick="registrarSalida()">Registrar salida</button>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page">
+      <div class="page-title">Dashboard</div>
+      <div class="page-sub">Flujo de viajes de hoy vs histórico por PGA.</div>
+
+      <div class="metrics-grid">
+        <div class="metric-card blue"><div class="metric-label">Entradas hoy</div><div class="metric-value" id="d-ent">—</div><div class="metric-sub">viajes</div></div>
+        <div class="metric-card green"><div class="metric-label">Salidas hoy</div><div class="metric-value" id="d-sal">—</div><div class="metric-sub">volteos</div></div>
+        <div class="metric-card"><div class="metric-label">Balance pendiente</div><div class="metric-value" id="d-bal">—</div><div class="metric-sub">sin recolectar hoy</div></div>
+        <div class="metric-card"><div class="metric-label">Total histórico</div><div class="metric-value" id="d-tot">—</div><div class="metric-sub">registros</div></div>
+      </div>
+      <div class="metrics-grid">
+        <div class="metric-card blue"><div class="metric-label">m³ entrada hoy</div><div class="metric-value" id="d-m3-eh">—</div><div class="metric-sub">metros cúbicos</div></div>
+        <div class="metric-card green"><div class="metric-label">m³ salida hoy</div><div class="metric-value" id="d-m3-sh">—</div><div class="metric-sub">metros cúbicos</div></div>
+        <div class="metric-card"><div class="metric-label">m³ entrada total</div><div class="metric-value" id="d-m3-et">—</div><div class="metric-sub">histórico</div></div>
+        <div class="metric-card"><div class="metric-label">m³ salida total</div><div class="metric-value" id="d-m3-st">—</div><div class="metric-sub">histórico</div></div>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>Entradas</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Salidas</div>
+      </div>
+      <div class="pga-flow-grid" id="pga-flow"></div>
+
+      <div class="card">
+        <div class="card-label">Viajes por PGA — hoy</div>
+        <div class="chart-container"><canvas id="ch-pga"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">m³ por PGA — hoy</div>
+        <div class="pga-flow-grid" id="pga-flow-m3" style="margin-bottom:14px"></div>
+        <div class="chart-container"><canvas id="ch-m3-pga"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Historial diario — últimos 14 días</div>
+        <div class="chart-container"><canvas id="ch-hist"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Registros por origen — histórico</div>
+        <div id="origen-counts" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:4px"></div>
+      </div>
+
+      <div class="btn-row" style="justify-content:flex-start;gap:10px">
+        <button class="btn btn-ghost" onclick="window.print()">Imprimir reporte</button>
+        <button class="btn btn-ghost" onclick="exportarExcel()">Exportar Excel</button>
+      </div>
+    </div>
+
+    <!-- HISTORIAL -->
+    <div id="page-historial" class="page">
+      <div class="table-header">
+        <div class="table-title">Historial de registros</div>
+        <div class="table-actions">
+          <span class="count-pill" id="h-count">0 registros</span>
+          <button class="btn btn-ghost" onclick="exportarExcel()">Exportar Excel</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <div class="empty-state" id="h-empty">No hay registros aún.</div>
+          <table id="h-tbl" style="display:none">
+            <thead><tr>
+              <th style="width:55px">ID</th>
+              <th style="width:80px">Folio</th>
+              <th style="width:55px">Tipo</th>
+              <th style="width:95px">Fecha</th>
+              <th style="width:65px">Hora</th>
+              <th style="width:130px">PGA</th>
+              <th style="width:120px">Detalle</th>
+              <th style="width:110px">Origen</th>
+              <th style="width:110px">Colonia</th>
+              <th style="width:100px">Placa</th>
+              <th style="width:65px">m³</th>
+              <th>Observaciones</th>
+            </tr></thead>
+            <tbody id="h-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const PGAS = ['ROVIROSA WADE','LEY SAULO','ESTERITO','RECOVERDE','COMPRESORA'];
+let chPga = null, chM3Pga = null, chHist = null;
+
+// ── API helpers ────────────────────────────────────────────────
+async function api(path, opts={}) {
+  const res = await fetch(path, {
+    headers: {'Content-Type':'application/json'},
+    ...opts
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ── Connectivity check ─────────────────────────────────────────
+async function checkConn() {
+  try {
+    await fetch('/api/registros?fecha=1900-01-01');
+    document.getElementById('conn-dot').className = 'conn-dot ok';
+  } catch(e) {
+    document.getElementById('conn-dot').className = 'conn-dot err';
+  }
+}
+setInterval(checkConn, 10000);
+checkConn();
+
+// ── Toast ──────────────────────────────────────────────────────
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── Navigation ─────────────────────────────────────────────────
+function goTo(page, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (page === 'dashboard') renderDashboard();
+  if (page === 'historial') renderHistorial();
+}
+
+// ── PGA Buttons ────────────────────────────────────────────────
+function buildPga(id) {
+  const c = document.getElementById(id);
+  c.innerHTML = PGAS.map(p =>
+    '<button class="pga-btn" data-val="' + p + '" data-cid="' + id + '">' + p + '</button>'
+  ).join('');
+  c.addEventListener('click', function(e) {
+    const btn = e.target.closest('.pga-btn');
+    if (!btn) return;
+    document.querySelectorAll('#' + btn.dataset.cid + ' .pga-btn').forEach(b => b.classList.remove('sel'));
+    btn.classList.add('sel');
+  });
+}
+function getPga(id) {
+  const s = document.querySelector('#' + id + ' .pga-btn.sel');
+  return s ? s.dataset.val : '';
+}
+
+// ── Helpers ────────────────────────────────────────────────────
+function toggleOtroE(sel) {
+  const w = document.getElementById('e-otro-wrap');
+  sel.value === 'OTRO' ? w.classList.add('vis') : w.classList.remove('vis');
+}
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+function nowTime() {
+  const d = new Date();
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+function autoNow(fId, hId) {
+  document.getElementById(fId).value = todayStr();
+  document.getElementById(hId).value = nowTime();
+}
+
+// ── Limpiar ────────────────────────────────────────────────────
+function limpiarE() {
+  ['e-fecha','e-hora','e-origen','e-vehiculo','e-carga','e-colonia','e-placa','e-m3','e-obs','e-otro-txt']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('e-otro-wrap').classList.remove('vis');
+  document.getElementById('e-ctr').textContent = '0/60';
+  document.getElementById('e-obs-ctr').textContent = '0/300';
+  autoNow('e-fecha','e-hora');
+}
+function limpiarS() {
+  ['s-fecha','s-hora','s-volteo','s-placa','s-m3','s-obs']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('s-obs-ctr').textContent = '0/300';
+  autoNow('s-fecha','s-hora');
+}
+
+// ── Registrar entrada ──────────────────────────────────────────
+async function registrarEntrada() {
+  const pga = getPga('pga-sel-e');
+  const fecha = document.getElementById('e-fecha').value;
+  const origen = document.getElementById('e-origen').value;
+  if (!pga)   { toast('Selecciona un PGA primero.'); return; }
+  if (!fecha) { toast('La fecha es obligatoria.'); return; }
+  if (!origen){ toast('El campo Origen es obligatorio.'); return; }
+  let carga = document.getElementById('e-carga').value;
+  if (carga === 'OTRO') carga = document.getElementById('e-otro-txt').value.trim() || 'OTRO';
+  const btn = document.getElementById('btn-registrar-e');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Guardando...';
+  try {
+    const res = await api('/api/registros', {
+      method: 'POST',
+      body: JSON.stringify({
+        tipo: 'ENTRADA', fecha,
+        hora: document.getElementById('e-hora').value || '',
+        pga, detalle: carga || '',
+        origen, colonia: document.getElementById('e-colonia').value.trim(),
+        vehiculo: document.getElementById('e-vehiculo').value,
+        placa: document.getElementById('e-placa').value.trim().toUpperCase(),
+        m3: parseFloat(document.getElementById('e-m3').value) || 0,
+        obs: document.getElementById('e-obs').value.trim()
+      })
+    });
+    limpiarE();
+    toast('Entrada ' + res.folio + ' registrada — ' + pga);
+    updateNavBadges();
+  } catch(e) {
+    toast('Error al guardar. Verifica la conexión.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Registrar entrada';
+  }
+}
+
+// ── Registrar salida ───────────────────────────────────────────
+async function registrarSalida() {
+  const pga = getPga('pga-sel-s');
+  const fecha = document.getElementById('s-fecha').value;
+  if (!pga)   { toast('Selecciona un PGA primero.'); return; }
+  if (!fecha) { toast('La fecha es obligatoria.'); return; }
+  const volteo = document.getElementById('s-volteo').value || 'VOLTEO';
+  const btn = document.getElementById('btn-registrar-s');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Guardando...';
+  try {
+    const res = await api('/api/registros', {
+      method: 'POST',
+      body: JSON.stringify({
+        tipo: 'SALIDA', fecha,
+        hora: document.getElementById('s-hora').value || '',
+        pga, detalle: volteo,
+        origen: '', colonia: volteo,
+        vehiculo: 'VOLTEO',
+        placa: document.getElementById('s-placa').value.trim().toUpperCase(),
+        m3: parseFloat(document.getElementById('s-m3').value) || 0,
+        obs: document.getElementById('s-obs').value.trim()
+      })
+    });
+    limpiarS();
+    toast('Salida ' + res.folio + ' registrada — ' + pga);
+    updateNavBadges();
+  } catch(e) {
+    toast('Error al guardar. Verifica la conexión.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Registrar salida';
+  }
+}
+
+// ── Nav badges ─────────────────────────────────────────────────
+async function updateNavBadges() {
+  try {
+    const hoy = todayStr();
+    const [ent, sal] = await Promise.all([
+      api('/api/registros?fecha=' + hoy + '&tipo=ENTRADA'),
+      api('/api/registros?fecha=' + hoy + '&tipo=SALIDA')
+    ]);
+    document.getElementById('nav-badge-in').textContent  = ent.length;
+    document.getElementById('nav-badge-out').textContent = sal.length;
+  } catch(e) {}
+}
+
+// ── Dashboard ──────────────────────────────────────────────────
+async function renderDashboard() {
+  try {
+    const d = await api('/api/dashboard?fecha=' + todayStr());
+
+    document.getElementById('d-ent').textContent   = d.ent_hoy;
+    document.getElementById('d-sal').textContent   = d.sal_hoy;
+    document.getElementById('d-bal').textContent   = d.balance;
+    document.getElementById('d-tot').textContent   = d.total;
+    document.getElementById('d-m3-eh').textContent = d.m3_ent_hoy.toFixed(2);
+    document.getElementById('d-m3-sh').textContent = d.m3_sal_hoy.toFixed(2);
+    document.getElementById('d-m3-et').textContent = d.m3_ent_tot.toFixed(2);
+    document.getElementById('d-m3-st').textContent = d.m3_sal_tot.toFixed(2);
+
+    // PGA flow (viajes)
+    document.getElementById('pga-flow').innerHTML = d.pga_flow.map(p =>
+      '<div class="pga-flow-card">' +
+        '<div class="pga-flow-name">' + p.pga + '</div>' +
+        '<div class="pga-flow-nums">' +
+          '<span class="num-in">' + p.ent + '</span>' +
+          '<span class="num-sep">/</span>' +
+          '<span class="num-out">' + p.sal + '</span>' +
+        '</div>' +
+        '<div class="pga-flow-sub">ent / sal</div>' +
+      '</div>'
+    ).join('');
+
+    // PGA flow (m3)
+    document.getElementById('pga-flow-m3').innerHTML = d.pga_flow.map(p =>
+      '<div class="pga-flow-card">' +
+        '<div class="pga-flow-name">' + p.pga + '</div>' +
+        '<div class="pga-flow-nums">' +
+          '<span class="num-in" style="font-size:16px">' + p.m3_ent.toFixed(1) + '</span>' +
+          '<span class="num-sep">/</span>' +
+          '<span class="num-out" style="font-size:16px">' + p.m3_sal.toFixed(1) + '</span>' +
+        '</div>' +
+        '<div class="pga-flow-sub">m3 ent / sal</div>' +
+      '</div>'
+    ).join('');
+
+    const labels = d.pga_flow.map(p => p.pga.length > 9 ? p.pga.slice(0,9)+'...' : p.pga);
+
+    // Chart viajes PGA
+    if (chPga) chPga.destroy();
+    chPga = new Chart(document.getElementById('ch-pga'), {
+      type: 'bar',
+      data: { labels, datasets: [
+        { label:'Entradas', data: d.pga_flow.map(p=>p.ent), backgroundColor:'#1a6fc4', borderRadius:5, borderSkipped:false },
+        { label:'Salidas',  data: d.pga_flow.map(p=>p.sal), backgroundColor:'#0f7a54', borderRadius:5, borderSkipped:false }
+      ]},
+      options: { responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ display:false }},
+        scales:{ y:{ ticks:{ stepSize:1 }, beginAtZero:true, grid:{ color:'rgba(128,128,128,.08)' }},
+                 x:{ ticks:{ font:{ size:11 }}, grid:{ display:false }}}}
+    });
+
+    // Chart m3 PGA
+    if (chM3Pga) chM3Pga.destroy();
+    chM3Pga = new Chart(document.getElementById('ch-m3-pga'), {
+      type: 'bar',
+      data: { labels, datasets: [
+        { label:'m3 entrada', data: d.pga_flow.map(p=>p.m3_ent), backgroundColor:'#1a6fc4', borderRadius:5, borderSkipped:false },
+        { label:'m3 salida',  data: d.pga_flow.map(p=>p.m3_sal), backgroundColor:'#0f7a54', borderRadius:5, borderSkipped:false }
+      ]},
+      options: { responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ display:false },
+          tooltip:{ callbacks:{ label: function(c){ return c.dataset.label+': '+c.parsed.y.toFixed(2)+' m3'; }}}},
+        scales:{ y:{ beginAtZero:true, grid:{ color:'rgba(128,128,128,.08)' },
+                     ticks:{ callback: function(v){ return v+' m3'; }}},
+                 x:{ ticks:{ font:{ size:11 }}, grid:{ display:false }}}}
+    });
+
+    // Chart historial
+    const allDays = [];
+    for (let i=13;i>=0;i--) {
+      const dd = new Date(); dd.setDate(dd.getDate()-i);
+      allDays.push(dd.toISOString().split('T')[0]);
+    }
+    const histMap = {};
+    d.historial.forEach(h => { histMap[h.fecha] = h; });
+    const dayLabels = allDays.map(dd => { const p=dd.split('-'); return p[2]+'/'+p[1]; });
+    const entByDay  = allDays.map(dd => histMap[dd] ? histMap[dd].entradas : 0);
+    const salByDay  = allDays.map(dd => histMap[dd] ? histMap[dd].salidas  : 0);
+    if (chHist) chHist.destroy();
+    chHist = new Chart(document.getElementById('ch-hist'), {
+      type: 'line',
+      data: { labels: dayLabels, datasets: [
+        { label:'Entradas', data: entByDay, borderColor:'#1a6fc4', backgroundColor:'rgba(26,111,196,.1)', tension:.3, fill:true, pointRadius:3 },
+        { label:'Salidas',  data: salByDay, borderColor:'#0f7a54', backgroundColor:'rgba(15,122,84,.08)',  tension:.3, fill:true, pointRadius:3 }
+      ]},
+      options: { responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ display:false }},
+        scales:{ y:{ ticks:{ stepSize:1 }, beginAtZero:true, grid:{ color:'rgba(128,128,128,.08)' }},
+                 x:{ ticks:{ font:{ size:11 }, maxRotation:45 }, grid:{ display:false }}}}
+    });
+
+    // Origen counts
+    const total = d.origen_counts.reduce((s,o) => s+o.count, 0);
+    document.getElementById('origen-counts').innerHTML = d.origen_counts.length
+      ? d.origen_counts.map(o => {
+          const pct = total ? Math.round(o.count/total*100) : 0;
+          return '<div style="background:var(--bg2);border-radius:var(--radius);padding:12px 14px;">' +
+            '<div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">' + o.origen + '</div>' +
+            '<div style="font-size:24px;font-weight:700;color:var(--text);line-height:1">' + o.count + '</div>' +
+            '<div style="font-size:11px;color:var(--text3);margin-top:4px">' + pct + '% del total</div>' +
+            '</div>';
+        }).join('')
+      : '<div style="font-size:13px;color:var(--text2);padding:8px 0">Sin registros de entradas aún.</div>';
+
+  } catch(e) {
+    toast('Error al cargar el dashboard.');
+  }
+}
+
+// ── Historial ──────────────────────────────────────────────────
+async function renderHistorial() {
+  try {
+    const rows = await api('/api/registros');
+    const empty = document.getElementById('h-empty');
+    const tbl   = document.getElementById('h-tbl');
+    document.getElementById('h-count').textContent = rows.length + (rows.length===1?' registro':' registros');
+    if (!rows.length) { empty.style.display=''; tbl.style.display='none'; return; }
+    empty.style.display='none'; tbl.style.display='';
+    document.getElementById('h-body').innerHTML = rows.map(r =>
+      '<tr>' +
+        '<td class="mono">' + r.id + '</td>' +
+        '<td class="mono">' + r.folio + '</td>' +
+        '<td><span class="badge ' + (r.tipo==='ENTRADA'?'badge-in':'badge-out') + '">' + (r.tipo==='ENTRADA'?'ENT':'SAL') + '</span></td>' +
+        '<td>' + r.fecha + '</td>' +
+        '<td>' + (r.hora||'—') + '</td>' +
+        '<td style="font-weight:600">' + r.pga + '</td>' +
+        '<td>' + (r.detalle||'—') + '</td>' +
+        '<td>' + (r.origen||'—') + '</td>' +
+        '<td>' + (r.colonia||'—') + '</td>' +
+        '<td>' + (r.placa||'—') + '</td>' +
+        '<td>' + (r.m3 ? parseFloat(r.m3).toFixed(2) : '—') + '</td>' +
+        '<td style="max-width:200px;color:var(--text2)">' + (r.obs||'—') + '</td>' +
+      '</tr>'
+    ).join('');
+  } catch(e) {
+    toast('Error al cargar el historial.');
+  }
+}
+
+// ── Export Excel ───────────────────────────────────────────────
+function exportarExcel() {
+  window.location.href = '/api/export/excel';
+}
+
+// ── Init ───────────────────────────────────────────────────────
+buildPga('pga-sel-e');
+buildPga('pga-sel-s');
+autoNow('e-fecha','e-hora');
+autoNow('s-fecha','s-hora');
+updateNavBadges();
+
+document.getElementById('topbar-date').textContent =
+  new Date().toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+</script>
+</body>
+</html>
