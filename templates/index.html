@@ -790,6 +790,8 @@ async function renderHistorial() {
     ).join('');
   } catch(e) {
     toast('Error al cargar el historial.');
+  } finally {
+    actualizarBarraAccion();
   }
 }
 
@@ -829,6 +831,9 @@ async function eliminarSeleccionados() {
     toast(ok + ' eliminado(s), ' + fail + ' no se pudo(ieron) eliminar');
   }
   renderHistorial();
+  actualizarBarraAccion();
+  const master = document.querySelector('#h-tbl thead input[type=checkbox]');
+  if (master) master.checked = false;
   updateNavBadges();
 }
 
