@@ -507,6 +507,7 @@ function setRapido(tipo) {
     hasta = dateToLocalStr(ultimo);
   }
 
+  if (!desde || !hasta) return;  // tipo desconocido — no hacer nada
   document.getElementById('d-desde').value = desde;
   document.getElementById('d-hasta').value  = hasta;
   renderDashboard();
@@ -627,6 +628,7 @@ async function renderDashboard() {
   try {
     const desde = document.getElementById('d-desde').value || todayStr();
     const hasta  = document.getElementById('d-hasta').value  || todayStr();
+    if (desde > hasta) { toast('La fecha "Desde" debe ser anterior o igual a "Hasta".'); return; }
     const d = await api('/api/dashboard?desde=' + desde + '&hasta=' + hasta);
 
     document.getElementById('d-ent').textContent    = d.ent_periodo;
