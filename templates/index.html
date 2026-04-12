@@ -371,11 +371,21 @@
           <button class="btn btn-ghost" onclick="exportarExcel()">Exportar Excel</button>
         </div>
       </div>
+
+      <!-- Barra de acción (oculta hasta seleccionar) -->
+      <div id="h-action-bar" style="display:none; align-items:center; gap:12px;
+           background:var(--red-bg); border:1px solid var(--red); border-radius:var(--radius);
+           padding:8px 14px; margin-bottom:10px;">
+        <span id="h-sel-count" style="font-size:13px; color:var(--red); font-weight:600">0 seleccionado(s)</span>
+        <button class="btn btn-danger" onclick="eliminarSeleccionados()">🗑 Eliminar seleccionados</button>
+      </div>
+
       <div class="table-wrap">
         <div class="table-scroll">
           <div class="empty-state" id="h-empty">No hay registros aún.</div>
           <table id="h-tbl" style="display:none">
             <thead><tr>
+              <th style="width:36px;text-align:center"><input type="checkbox" title="Seleccionar todos" onchange="toggleTodos(this)"/></th>
               <th style="width:55px">ID</th>
               <th style="width:80px">Folio</th>
               <th style="width:55px">Tipo</th>
@@ -763,6 +773,7 @@ async function renderHistorial() {
     empty.style.display='none'; tbl.style.display='';
     document.getElementById('h-body').innerHTML = rows.map(r =>
       '<tr>' +
+        '<td style="text-align:center"><input type="checkbox" value="' + r.id + '" onchange="actualizarBarraAccion()"/></td>' +
         '<td class="mono">' + r.id + '</td>' +
         '<td class="mono">' + r.folio + '</td>' +
         '<td><span class="badge ' + (r.tipo==='ENTRADA'?'badge-in':'badge-out') + '">' + (r.tipo==='ENTRADA'?'ENT':'SAL') + '</span></td>' +
@@ -780,6 +791,45 @@ async function renderHistorial() {
   } catch(e) {
     toast('Error al cargar el historial.');
   }
+}
+
+// ── Historial — selección y eliminación ────────────────────────
+function actualizarBarraAccion() {
+  const checks = document.querySelectorAll('#h-body input[type=checkbox]:checked');
+  const bar = document.getElementById('h-action-bar');
+  bar.style.display = checks.length > 0 ? 'flex' : 'none';
+  document.getElementById('h-sel-count').textContent = checks.length + ' seleccionado(s)';
+}
+
+function toggleTodos(master) {
+  document.querySelectorAll('#h-body input[type=checkbox]')
+    .forEach(cb => cb.checked = master.checked);
+  actualizarBarraAccion();
+}
+
+async function eliminarSeleccionados() {
+  const checks = [...document.querySelectorAll('#h-body input[type=checkbox]:checked')];
+  if (!checks.length) return;
+  const n = checks.length;
+  if (!confirm('¿Eliminar ' + n + ' registro(s)? Esta acción no se puede deshacer.')) return;
+
+  let ok = 0, fail = 0;
+  for (const cb of checks) {
+    try {
+      await api('/api/registros/' + cb.value, { method: 'DELETE' });
+      ok++;
+    } catch(e) {
+      fail++;
+    }
+  }
+
+  if (fail === 0) {
+    toast(ok + ' registro(s) eliminado(s)');
+  } else {
+    toast(ok + ' eliminado(s), ' + fail + ' no se pudo(ieron) eliminar');
+  }
+  renderHistorial();
+  updateNavBadges();
 }
 
 // ── Export Excel ───────────────────────────────────────────────
