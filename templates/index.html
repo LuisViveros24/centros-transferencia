@@ -144,7 +144,24 @@
   @keyframes spin{to{transform:rotate(360deg)}}
 
   @media(max-width:900px){.sidebar{width:160px}.pga-grid,.pga-flow-grid{grid-template-columns:repeat(3,1fr)}.metrics-grid{grid-template-columns:repeat(2,1fr)}.cols-3{grid-template-columns:1fr 1fr}}
-  @media(max-width:640px){.sidebar{display:none}.content{padding:16px}.cols-2,.cols-3{grid-template-columns:1fr}.pga-grid{grid-template-columns:repeat(2,1fr)}.pga-flow-grid{grid-template-columns:repeat(2,1fr)}.metrics-grid{grid-template-columns:repeat(2,1fr)}}
+  /* hamburger button — solo visible en móvil */
+  .menu-btn{display:none;background:transparent;border:none;cursor:pointer;padding:6px;border-radius:var(--radius);color:var(--text2);flex-shrink:0}
+  .menu-btn:hover{background:var(--bg2)}
+  .menu-btn svg{width:20px;height:20px;display:block}
+  /* overlay oscuro detrás del sidebar en móvil */
+  .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:149}
+  .sidebar-overlay.vis{display:block}
+
+  @media(max-width:640px){
+    .menu-btn{display:flex;align-items:center;justify-content:center}
+    .sidebar{display:none;position:fixed;top:56px;left:0;height:calc(100vh - 56px);z-index:150;width:220px;box-shadow:4px 0 16px rgba(0,0,0,0.18)}
+    .sidebar.open{display:flex}
+    .content{padding:16px}
+    .cols-2,.cols-3{grid-template-columns:1fr}
+    .pga-grid{grid-template-columns:repeat(2,1fr)}
+    .pga-flow-grid{grid-template-columns:repeat(2,1fr)}
+    .metrics-grid{grid-template-columns:repeat(2,1fr)}
+  }
 
   @media print{
     body{background:white}
@@ -157,7 +174,14 @@
 </head>
 <body>
 
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
 <div class="topbar">
+  <button class="menu-btn" onclick="toggleSidebar()" title="Menú">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  </button>
   <div class="hico">
     <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
       <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor"/>
@@ -444,11 +468,23 @@ function toast(msg) {
 }
 
 // ── Navigation ─────────────────────────────────────────────────
+function toggleSidebar() {
+  const sb = document.querySelector('.sidebar');
+  const ov = document.getElementById('sidebar-overlay');
+  const open = sb.classList.toggle('open');
+  ov.classList.toggle('vis', open);
+}
+function closeSidebar() {
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('vis');
+}
+
 function goTo(page, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   if (btn) btn.classList.add('active');
+  closeSidebar();  // cierra el sidebar en móvil al navegar
   if (page === 'dashboard') {
     // Primera visita: inputs vacíos → inicializar con Hoy
     if (!document.getElementById('d-desde').value) setRapido('hoy');
