@@ -152,6 +152,28 @@ def crear_registro():
         conn.close()
     return jsonify({'ok': True, 'folio': folio}), 201
 
+@app.route('/api/registros/buscar-placa', methods=['GET'])
+@requiere_auth
+def buscar_placa():
+    """Devuelve los datos del último registro de entrada con esa placa (parcial)."""
+    q = request.args.get('q', '').strip().upper()
+    if len(q) < 3:
+        return jsonify(None)
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT vehiculo, detalle, origen, nombre, colonia
+                    FROM registros
+                    WHERE UPPER(placa) LIKE %s AND tipo='ENTRADA'
+                    ORDER BY id DESC LIMIT 1
+                """, (q + '%',))
+                row = cur.fetchone()
+    finally:
+        conn.close()
+    return jsonify(dict(row) if row else None)
+
 @app.route('/api/registros/<int:rid>', methods=['DELETE'])
 @requiere_auth
 def eliminar_registro(rid):

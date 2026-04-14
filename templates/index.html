@@ -273,7 +273,17 @@
           <div class="field"><label>Colonia de origen</label><input type="text" id="e-colonia" placeholder="Ej. Col. Centro..."/></div>
         </div>
         <div class="form-grid cols-2" style="margin-top:14px">
-          <div class="field"><label>Placa</label><input type="text" id="e-placa" placeholder="Ej. ABC-123-D" maxlength="20" style="text-transform:uppercase"/></div>
+          <div class="field">
+            <label>Placa</label>
+            <input type="text" id="e-placa" placeholder="Ej. ABC-123-D" maxlength="20" style="text-transform:uppercase"/>
+            <div id="e-placa-hint" style="display:none;align-items:center;gap:8px;margin-top:4px;
+                 padding:6px 10px;background:var(--blue-bg);border:1px solid var(--blue);
+                 border-radius:var(--radius);font-size:12px;flex-wrap:wrap">
+              <span id="e-placa-hint-text" style="color:var(--blue-text);flex:1"></span>
+              <button class="btn btn-ghost" style="padding:3px 10px;font-size:11px;border-color:var(--blue)"
+                      onclick="aplicarAutocompletado()">Aplicar</button>
+            </div>
+          </div>
           <div class="field"><label>Metros cúbicos (m³)</label><input type="number" id="e-m3" placeholder="0.00" min="0" step="0.01"/></div>
         </div>
         <div class="field" style="margin-top:14px"><label>Observaciones</label>
@@ -583,6 +593,7 @@ function limpiarE() {
   document.getElementById('e-ctr').textContent = '0/60';
   document.getElementById('e-nombre-ctr').textContent = '0/200';
   document.getElementById('e-obs-ctr').textContent = '0/300';
+  ocultarHintPlaca();
   autoNow('e-fecha','e-hora');
 }
 function limpiarS() {
@@ -885,6 +896,58 @@ async function eliminarSeleccionados() {
   updateNavBadges();
 }
 
+// ── Autocompletado por placa ───────────────────────────────────
+let _placaTimer = null;
+let _placaSug   = null;
+
+function _initPlacaHint() {
+  document.getElementById('e-placa').addEventListener('input', function() {
+    clearTimeout(_placaTimer);
+    const val = this.value.trim();
+    if (val.length < 3) { ocultarHintPlaca(); return; }
+    _placaTimer = setTimeout(() => _buscarPlaca(val), 400);
+  });
+}
+
+async function _buscarPlaca(placa) {
+  try {
+    const r = await api('/api/registros/buscar-placa?q=' + encodeURIComponent(placa));
+    if (!r) { ocultarHintPlaca(); return; }
+    _placaSug = r;
+    const resumen = [r.vehiculo, r.detalle, r.origen, r.nombre].filter(Boolean).join(' · ');
+    document.getElementById('e-placa-hint-text').textContent = '💡 ' + resumen;
+    document.getElementById('e-placa-hint').style.display = 'flex';
+  } catch(e) { ocultarHintPlaca(); }
+}
+
+function ocultarHintPlaca() {
+  _placaSug = null;
+  document.getElementById('e-placa-hint').style.display = 'none';
+}
+
+function aplicarAutocompletado() {
+  if (!_placaSug) return;
+  const r = _placaSug;
+  if (r.vehiculo) document.getElementById('e-vehiculo').value = r.vehiculo;
+  if (r.origen)   document.getElementById('e-origen').value   = r.origen;
+  if (r.nombre)   document.getElementById('e-nombre').value   = r.nombre;
+  if (r.colonia)  document.getElementById('e-colonia').value  = r.colonia;
+  if (r.detalle) {
+    const sel = document.getElementById('e-carga');
+    const opciones = [...sel.options].map(o => o.value);
+    if (opciones.includes(r.detalle)) {
+      sel.value = r.detalle;
+      document.getElementById('e-otro-wrap').classList.remove('vis');
+    } else {
+      sel.value = 'OTRO';
+      document.getElementById('e-otro-wrap').classList.add('vis');
+      document.getElementById('e-otro-txt').value = r.detalle;
+    }
+  }
+  ocultarHintPlaca();
+  toast('Datos completados desde registro anterior.');
+}
+
 // ── Export Excel ───────────────────────────────────────────────
 function exportarExcel() {
   window.location.href = '/api/export/excel';
@@ -896,6 +959,7 @@ buildPga('pga-sel-s');
 autoNow('e-fecha','e-hora');
 autoNow('s-fecha','s-hora');
 updateNavBadges();
+_initPlacaHint();
 
 document.getElementById('topbar-date').textContent =
   new Date().toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
