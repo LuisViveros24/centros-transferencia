@@ -239,9 +239,16 @@
             <select id="e-origen">
               <option value="">— Seleccionar —</option>
               <option>NEGOCIO</option><option>RECOLECTORES</option><option>CASA-HABITACIÓN</option>
-              <option>PASA</option><option>LA OLA</option>
+              <option>CEA</option><option>LA OLA</option>
             </select>
           </div>
+        </div>
+        <div class="field" style="margin-bottom:14px">
+          <label>Nombre</label>
+          <textarea id="e-nombre" maxlength="200" placeholder="Nombre completo de quien entrega el material..."
+            oninput="document.getElementById('e-nombre-ctr').textContent=this.value.length+'/200'"
+            style="min-height:56px"></textarea>
+          <div class="char-count" id="e-nombre-ctr">0/200</div>
         </div>
         <div class="form-grid cols-3">
           <div class="field"><label>Tipo de vehículo</label>
@@ -418,6 +425,7 @@
               <th style="width:130px">PGA</th>
               <th style="width:120px">Detalle</th>
               <th style="width:110px">Origen</th>
+              <th style="width:140px">Nombre</th>
               <th style="width:110px">Colonia</th>
               <th style="width:100px">Placa</th>
               <th style="width:65px">m³</th>
@@ -569,10 +577,11 @@ function autoNow(fId, hId) {
 
 // ── Limpiar ────────────────────────────────────────────────────
 function limpiarE() {
-  ['e-fecha','e-hora','e-origen','e-vehiculo','e-carga','e-colonia','e-placa','e-m3','e-obs','e-otro-txt']
+  ['e-fecha','e-hora','e-origen','e-nombre','e-vehiculo','e-carga','e-colonia','e-placa','e-m3','e-obs','e-otro-txt']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('e-otro-wrap').classList.remove('vis');
   document.getElementById('e-ctr').textContent = '0/60';
+  document.getElementById('e-nombre-ctr').textContent = '0/200';
   document.getElementById('e-obs-ctr').textContent = '0/300';
   autoNow('e-fecha','e-hora');
 }
@@ -603,7 +612,9 @@ async function registrarEntrada() {
         tipo: 'ENTRADA', fecha,
         hora: document.getElementById('e-hora').value || '',
         pga, detalle: carga || '',
-        origen, colonia: document.getElementById('e-colonia').value.trim(),
+        origen,
+        nombre: document.getElementById('e-nombre').value.trim(),
+        colonia: document.getElementById('e-colonia').value.trim(),
         vehiculo: document.getElementById('e-vehiculo').value,
         placa: document.getElementById('e-placa').value.trim().toUpperCase(),
         m3: parseFloat(document.getElementById('e-m3').value) || 0,
@@ -818,6 +829,7 @@ async function renderHistorial() {
         '<td style="font-weight:600">' + r.pga + '</td>' +
         '<td>' + (r.detalle||'—') + '</td>' +
         '<td>' + (r.origen||'—') + '</td>' +
+        '<td>' + (r.nombre||'—') + '</td>' +
         '<td>' + (r.colonia||'—') + '</td>' +
         '<td>' + (r.placa||'—') + '</td>' +
         '<td>' + (r.m3 ? parseFloat(r.m3).toFixed(2) : '—') + '</td>' +

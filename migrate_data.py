@@ -35,6 +35,7 @@ try:
                     pga       TEXT NOT NULL,
                     detalle   TEXT,
                     origen    TEXT,
+                    nombre    TEXT,
                     colonia   TEXT,
                     vehiculo  TEXT,
                     placa     TEXT,
@@ -42,6 +43,10 @@ try:
                     obs       TEXT,
                     creado_en TIMESTAMP DEFAULT NOW()
                 )
+            ''')
+            # Agregar columna nombre si la tabla ya existía sin ella
+            cur.execute('''
+                ALTER TABLE registros ADD COLUMN IF NOT EXISTS nombre TEXT
             ''')
             print('Creando tabla config...')
             cur.execute('''

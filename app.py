@@ -131,8 +131,8 @@ def crear_registro():
                 folio = next_folio(d.get('tipo', 'ENTRADA'), cur)
                 cur.execute('''
                     INSERT INTO registros
-                    (folio,tipo,fecha,hora,pga,detalle,origen,colonia,vehiculo,placa,m3,obs)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    (folio,tipo,fecha,hora,pga,detalle,origen,nombre,colonia,vehiculo,placa,m3,obs)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ''', (
                     folio,
                     d.get('tipo', 'ENTRADA'),
@@ -141,6 +141,7 @@ def crear_registro():
                     d.get('pga', ''),
                     d.get('detalle', ''),
                     d.get('origen', ''),
+                    d.get('nombre', ''),
                     d.get('colonia', ''),
                     d.get('vehiculo', ''),
                     d.get('placa', ''),
@@ -161,6 +162,14 @@ def eliminar_registro(rid):
                 cur.execute("DELETE FROM registros WHERE id=%s", (rid,))
                 if cur.rowcount == 0:
                     return jsonify({'error': 'Registro no encontrado'}), 404
+                # Recalcular folio_base al número más alto existente + 1
+                # Si no quedan registros, vuelve a 1
+                cur.execute("""
+                    UPDATE config SET valor = (
+                        SELECT COALESCE(MAX(SUBSTRING(folio FROM 5)::INTEGER), 0) + 1
+                        FROM registros
+                    ) WHERE clave = 'folio_base'
+                """)
     finally:
         conn.close()
     return jsonify({'ok': True})
@@ -227,7 +236,7 @@ def dashboard():
                         'm3_sal': round(float(m3o), 2)
                     })
 
-                origenes = ['NEGOCIO', 'RECOLECTORES', 'CASA-HABITACIÓN', 'PASA', 'LA OLA']
+                origenes = ['NEGOCIO', 'RECOLECTORES', 'CASA-HABITACIÓN', 'CEA', 'LA OLA']
                 origen_counts = []
                 for o in origenes:
                     c = q("SELECT COUNT(*) c FROM registros WHERE tipo='ENTRADA' AND origen=%s", [o])['c']
