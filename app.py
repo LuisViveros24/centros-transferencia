@@ -258,7 +258,7 @@ def dashboard():
                         'm3_sal': round(float(m3o), 2)
                     })
 
-                origenes = ['NEGOCIO', 'RECOLECTORES', 'CASA-HABITACIÓN', 'CEA', 'LA OLA']
+                origenes = ['NEGOCIO', 'RECOLECTORES', 'CASA-HABITACIÓN', 'CEA', 'LA OLA', 'CONTRATISTAS']
                 origen_counts = []
                 for o in origenes:
                     c = q("SELECT COUNT(*) c FROM registros WHERE tipo='ENTRADA' AND origen=%s", [o])['c']
