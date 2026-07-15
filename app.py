@@ -38,6 +38,8 @@ def init_db():
                         pga       TEXT NOT NULL,
                         detalle   TEXT,
                         origen    TEXT,
+                        nombre    TEXT,
+                        calle     TEXT,
                         colonia   TEXT,
                         vehiculo  TEXT,
                         placa     TEXT,
