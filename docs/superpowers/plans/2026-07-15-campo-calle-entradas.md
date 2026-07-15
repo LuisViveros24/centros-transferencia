@@ -33,7 +33,7 @@ No changes to `/api/dashboard`, the Salida form, or any Salida backend path.
 - Modify: `app.py:31-48`
 - Create: `tests/test_init_db.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/test_init_db.py`:
 
@@ -85,12 +85,12 @@ class TestInitDbSchema:
         assert 'calle' in sql, "Falta columna calle en el CREATE TABLE"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python3 -m pytest tests/test_init_db.py -v`
 Expected: FAIL — `AssertionError: Falta columna calle en el CREATE TABLE` (and/or the `nombre` assertion, since neither is in the current `CREATE TABLE`)
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `app.py`, inside `init_db()`, the `CREATE TABLE IF NOT EXISTS registros` block currently reads (lines 32-48):
 
@@ -124,12 +124,12 @@ Change the `origen`/`colonia` lines to:
                         colonia   TEXT,
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python3 -m pytest tests/test_init_db.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app.py tests/test_init_db.py
@@ -144,7 +144,7 @@ git commit -m "fix: init_db() incluye columnas nombre y calle en registros"
 - Modify: `app.py:121-153` (`crear_registro`)
 - Create: `tests/test_registros.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 > **Nota (actualizado tras Task 1):** `tests/conftest.py` ahora centraliza el setup de `DATABASE_URL`/`AUTH_USER`/`AUTH_PASS` con asignación directa (no `setdefault`), y ningún archivo de test debe hacer `del sys.modules['app']` ni reimportar — eso causaba fallos dependientes del orden de recolección de pytest (ver commits `2bbc48f`/`4bcaaab`). `tests/test_registros.py` debe usar un `import app as app_module` plano, sin boilerplate de entorno propio.
 
@@ -217,12 +217,12 @@ class TestCrearRegistroCalle:
         assert _param_for_column(sql, params, 'calle') == ''
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python3 -m pytest tests/test_registros.py::TestCrearRegistroCalle -v`
 Expected: FAIL — `ValueError: 'calle' is not in list` (the INSERT column list doesn't contain `calle` yet)
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `app.py`, `crear_registro()` currently reads (lines 132-150):
 
@@ -273,12 +273,12 @@ Replace with:
                 ))
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python3 -m pytest tests/test_registros.py::TestCrearRegistroCalle -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app.py tests/test_registros.py
@@ -293,7 +293,7 @@ git commit -m "feat: POST /api/registros guarda el campo calle"
 - Modify: `app.py:155-175` (`buscar_placa`)
 - Modify: `tests/test_registros.py` (add test class)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/test_registros.py`:
 
@@ -317,12 +317,12 @@ class TestBuscarPlacaCalle:
         assert 'calle' in select_calls[0].args[0], "Falta calle en el SELECT de buscar-placa"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python3 -m pytest tests/test_registros.py::TestBuscarPlacaCalle -v`
 Expected: FAIL — `KeyError: 'calle'` (the response JSON doesn't have that key yet, since the mocked `fila` dict has it but the endpoint doesn't SELECT it — the real endpoint's `dict(row)` would only contain what's actually queried from Postgres; here the mock returns the full dict regardless, so the failure will actually show as the SQL-content assertion failing: `AssertionError: Falta calle en el SELECT de buscar-placa`)
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `app.py`, `buscar_placa()` currently reads (lines 166-171):
 
@@ -346,12 +346,12 @@ Replace with:
                 """, (q + '%',))
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python3 -m pytest tests/test_registros.py -v`
 Expected: PASS (both test classes)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app.py tests/test_registros.py
@@ -368,7 +368,7 @@ git commit -m "feat: autocompletado por placa incluye calle"
 
 > Nota (ver spec, sección 4.3): los headers actuales de `export_excel()` ya omiten "Nombre" a pesar de que la columna existe hace varios commits — se corrige junto con "Calle" para que el Excel quede consistente con Historial.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 > **Nota (actualizado tras Task 1):** igual que en Task 2 — no reimportar `app`, no manejar `sys.modules`. `tests/conftest.py` ya deja el entorno listo.
 
@@ -430,12 +430,12 @@ class TestExportExcelCalle:
         assert 'Av. Reforma' in row2
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python3 -m pytest tests/test_export.py -v`
 Expected: FAIL — `AssertionError: assert 'Nombre' in [...]` (current headers don't include "Nombre" or "Calle"), or a `KeyError: 'nombre'`/`'calle'` from the `row[...]` access in `export_excel()` if headers are checked first — either way, RED
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `app.py`, `export_excel()` currently reads (lines 321-336):
 
@@ -483,17 +483,17 @@ Replace with:
     col_widths = [6, 10, 8, 12, 8, 18, 18, 16, 22, 18, 18, 18, 12, 8, 30, 18]
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python3 -m pytest tests/test_export.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Run the full backend test suite before moving to frontend**
+- [x] **Step 5: Run the full backend test suite before moving to frontend**
 
 Run: `python3 -m pytest tests/ -v`
 Expected: All tests PASS (auth, dashboard, init_db, registros, export)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app.py tests/test_export.py
@@ -509,7 +509,7 @@ git commit -m "feat: exportación a Excel incluye columnas Nombre y Calle"
 
 This script has no automated tests in this codebase (it's a manual one-off run against the Render production database — see its own docstring). Verification here is a syntax check plus a manual read-through, matching how the existing `nombre` migration was handled.
 
-- [ ] **Step 1: Add the ALTER TABLE statement**
+- [x] **Step 1: Add the ALTER TABLE statement**
 
 In `migrate_data.py`, right after the existing `nombre` migration (lines 47-50):
 
@@ -529,12 +529,12 @@ Add:
             ''')
 ```
 
-- [ ] **Step 2: Verify syntax**
+- [x] **Step 2: Verify syntax**
 
 Run: `python3 -m py_compile migrate_data.py`
 Expected: no output, exit code 0
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add migrate_data.py
@@ -552,7 +552,7 @@ git commit -m "feat: migrate_data.py agrega columna calle en producción"
 
 No automated test — this file has no JS test suite in this codebase. Verified manually in Task 8.
 
-- [ ] **Step 1: Add the `.cols-4` CSS class**
+- [x] **Step 1: Add the `.cols-4` CSS class**
 
 Line 75 currently:
 
@@ -584,7 +584,7 @@ Change to:
     .cols-2,.cols-3,.cols-4{grid-template-columns:1fr}
 ```
 
-- [ ] **Step 2: Add the Calle field to the Entrada form**
+- [x] **Step 2: Add the Calle field to the Entrada form**
 
 In the block starting `<div class="form-grid cols-3">` right before `<div class="field"><label>Tipo de vehículo</label>` (line 253), change the wrapping class from `cols-3` to `cols-4`.
 
@@ -603,7 +603,7 @@ Change to:
 
 (The `<select id="e-vehiculo">` and `<select id="e-carga">` fields between them are unchanged.)
 
-- [ ] **Step 3: Send `calle` when registering an entrada**
+- [x] **Step 3: Send `calle` when registering an entrada**
 
 In `registrarEntrada()`, line 628 currently:
 
@@ -618,7 +618,7 @@ Change to:
         colonia: document.getElementById('e-colonia').value.trim(),
 ```
 
-- [ ] **Step 4: Reset `e-calle` in `limpiarE()`**
+- [x] **Step 4: Reset `e-calle` in `limpiarE()`**
 
 Line 590 currently:
 
@@ -632,7 +632,7 @@ Change to:
   ['e-fecha','e-hora','e-origen','e-nombre','e-vehiculo','e-carga','e-calle','e-colonia','e-placa','e-m3','e-obs','e-otro-txt']
 ```
 
-- [ ] **Step 5: Apply `calle` from placa autocomplete**
+- [x] **Step 5: Apply `calle` from placa autocomplete**
 
 In `aplicarAutocompletado()`, line 934 currently:
 
@@ -647,7 +647,7 @@ Change to:
   if (r.colonia)  document.getElementById('e-colonia').value  = r.colonia;
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add templates/index.html
@@ -661,7 +661,7 @@ git commit -m "feat: campo Calle en el formulario de entrada"
 **Files:**
 - Modify: `templates/index.html` (table header ~line 439, row render ~line 844)
 
-- [ ] **Step 1: Add the "Calle" header column**
+- [x] **Step 1: Add the "Calle" header column**
 
 Line 438-439 currently:
 
@@ -678,7 +678,7 @@ Change to:
               <th style="width:110px">Colonia</th>
 ```
 
-- [ ] **Step 2: Render the `calle` cell in each row**
+- [x] **Step 2: Render the `calle` cell in each row**
 
 Line 843-844 currently:
 
@@ -697,7 +697,7 @@ Change to:
 
 (Salida rows have no `calle` — this shows `—` for them automatically, same as `nombre`/`colonia` already do.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add templates/index.html
@@ -713,7 +713,7 @@ The app requires a real PostgreSQL `DATABASE_URL` to run end-to-end (`app.py` ra
 **Files:**
 - Create (temporary, not committed): `.claude/launch.json`
 
-- [ ] **Step 1: Set up a temporary static file server for the Browser pane**
+- [x] **Step 1: Set up a temporary static file server for the Browser pane**
 
 Create `.claude/launch.json`:
 
@@ -733,18 +733,18 @@ Create `.claude/launch.json`:
 
 Start it with the `preview_start` tool (`name: "static-preview"`), then `navigate` to `http://localhost:8731/index.html`.
 
-- [ ] **Step 2: Verify the Entrada form**
+- [x] **Step 2: Verify the Entrada form**
 
-- [ ] Screenshot the Entrada page — confirm "Calle" appears as its own field between "Tipo de carga" and "Colonia de origen", in a 4-column row (desktop width)
-- [ ] `resize_window` to `mobile` preset — confirm the row collapses to 1 column (via the `.cols-4` responsive rule) without visual overlap
-- [ ] Type into "Calle" and "Colonia de origen", then click "Limpiar" — confirm both fields empty (verifies `limpiarE()` change without needing the backend)
-- [ ] Check `read_console_messages` for JS errors on page load and after clicking Limpiar
+- [x] Screenshot the Entrada page — confirm "Calle" appears as its own field between "Tipo de carga" and "Colonia de origen", in a 4-column row (desktop width)
+- [x] `resize_window` to `mobile` preset — confirm the row collapses to 1 column (via the `.cols-4` responsive rule) without visual overlap
+- [x] Type into "Calle" and "Colonia de origen", then click "Limpiar" — confirm both fields empty (verifies `limpiarE()` change without needing the backend)
+- [x] Check `read_console_messages` for JS errors on page load and after clicking Limpiar
 
-- [ ] **Step 3: Verify the Historial table header**
+- [x] **Step 3: Verify the Historial table header**
 
-- [ ] Navigate to the Historial tab — confirm the table header row shows "Nombre", "Calle", "Colonia" in that order (the table body will be empty/show the "sin conexión" state since there's no backend — that's expected here)
+- [x] Navigate to the Historial tab — confirm the table header row shows "Nombre", "Calle", "Colonia" in that order (the table body will be empty/show the "sin conexión" state since there's no backend — that's expected here)
 
-- [ ] **Step 4: Clean up**
+- [x] **Step 4: Clean up**
 
 ```bash
 rm -f .claude/launch.json
@@ -761,17 +761,17 @@ This step intentionally has no git commit — nothing under `.claude/` should be
 
 **Files:** none (verification only)
 
-- [ ] **Step 1: Run the complete pytest suite**
+- [x] **Step 1: Run the complete pytest suite**
 
 Run: `python3 -m pytest tests/ -v`
 Expected: All tests PASS — `test_auth.py`, `test_dashboard.py`, `test_init_db.py`, `test_registros.py`, `test_export.py`
 
-- [ ] **Step 2: Sanity-check `app.py` and `migrate_data.py` syntax**
+- [x] **Step 2: Sanity-check `app.py` and `migrate_data.py` syntax**
 
 Run: `python3 -m py_compile app.py migrate_data.py`
 Expected: no output, exit code 0
 
-- [ ] **Step 3: Request code review**
+- [x] **Step 3: Request code review**
 
 Use the `superpowers:requesting-code-review` skill against the full diff for this feature before considering it done.
 
@@ -779,13 +779,13 @@ Use the `superpowers:requesting-code-review` skill against the full diff for thi
 
 ## Success Criteria (from spec)
 
-- [ ] El formulario de Entrada muestra un campo "Calle" junto a "Colonia de origen"
-- [ ] Al registrar una entrada con Calle, el dato se guarda correctamente en la base de datos
-- [ ] El botón "Limpiar" también vacía el campo Calle
-- [ ] Al escribir una placa ya registrada, el autocompletado sugiere también la Calle (si existía en el registro anterior)
-- [ ] La tabla de Historial muestra la columna "Calle" con el valor correcto (o "—" si está vacío, incluidas las filas de Salida)
-- [ ] La exportación a Excel incluye las columnas "Nombre" y "Calle" con los datos correctos
-- [ ] El registro de Salida sigue funcionando sin cambios (no pide ni guarda Calle)
-- [ ] El Dashboard no cambia — no aparece ninguna tarjeta o desglose nuevo relacionado con Calle
-- [ ] En una base de datos ya existente en producción, correr `migrate_data.py` agrega la columna `calle` sin borrar datos existentes
-- [ ] `init_db()` (desarrollo local) crea la tabla con las columnas `nombre` y `calle` incluidas, permitiendo registrar una entrada en una base local nueva sin error
+- [x] El formulario de Entrada muestra un campo "Calle" junto a "Colonia de origen"
+- [x] Al registrar una entrada con Calle, el dato se guarda correctamente en la base de datos
+- [x] El botón "Limpiar" también vacía el campo Calle
+- [x] Al escribir una placa ya registrada, el autocompletado sugiere también la Calle (si existía en el registro anterior)
+- [x] La tabla de Historial muestra la columna "Calle" con el valor correcto (o "—" si está vacío, incluidas las filas de Salida)
+- [x] La exportación a Excel incluye las columnas "Nombre" y "Calle" con los datos correctos
+- [x] El registro de Salida sigue funcionando sin cambios (no pide ni guarda Calle)
+- [x] El Dashboard no cambia — no aparece ninguna tarjeta o desglose nuevo relacionado con Calle
+- [x] En una base de datos ya existente en producción, correr `migrate_data.py` agrega la columna `calle` sin borrar datos existentes
+- [x] `init_db()` (desarrollo local) crea la tabla con las columnas `nombre` y `calle` incluidas, permitiendo registrar una entrada en una base local nueva sin error
