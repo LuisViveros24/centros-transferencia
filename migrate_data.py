@@ -48,6 +48,10 @@ try:
             cur.execute('''
                 ALTER TABLE registros ADD COLUMN IF NOT EXISTS nombre TEXT
             ''')
+            # Agregar columna calle si la tabla ya existía sin ella
+            cur.execute('''
+                ALTER TABLE registros ADD COLUMN IF NOT EXISTS calle TEXT
+            ''')
             print('Creando tabla config...')
             cur.execute('''
                 CREATE TABLE IF NOT EXISTS config (
