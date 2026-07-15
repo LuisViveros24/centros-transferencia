@@ -5,15 +5,12 @@ incluya las columnas nombre y calle en la tabla registros.
 nombre ya se usaba sin estar en este CREATE TABLE (brecha preexistente,
 detectada durante la revisión del spec de 2026-07-15); calle es nueva.
 """
-import os, sys
+import os
 from unittest.mock import patch, MagicMock
 
 os.environ.setdefault('DATABASE_URL', 'postgresql://fake:fake@localhost/fake')
 os.environ.setdefault('AUTH_USER', 'usuario_test')
 os.environ.setdefault('AUTH_PASS', 'clave_test')
-
-if 'app' in sys.modules:
-    del sys.modules['app']
 
 import app as app_module
 
