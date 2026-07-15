@@ -322,7 +322,7 @@ def export_excel():
     ws.title = 'Registros'
 
     headers = ['ID', 'Folio', 'Tipo', 'Fecha', 'Hora', 'PGA', 'Detalle/Carga',
-               'Origen', 'Colonia', 'Vehículo', 'Placa', 'm³', 'Observaciones', 'Registrado']
+               'Origen', 'Nombre', 'Calle', 'Colonia', 'Vehículo', 'Placa', 'm³', 'Observaciones', 'Registrado']
     header_fill = PatternFill(fill_type='solid', fgColor='1a6fc4')
     header_font = Font(bold=True, color='FFFFFF')
     for col, h in enumerate(headers, 1):
@@ -334,11 +334,11 @@ def export_excel():
     for row in rows:
         ws.append([
             row['id'], row['folio'], row['tipo'], row['fecha'], row['hora'],
-            row['pga'], row['detalle'], row['origen'], row['colonia'],
+            row['pga'], row['detalle'], row['origen'], row['nombre'], row['calle'], row['colonia'],
             row['vehiculo'], row['placa'], row['m3'], row['obs'], row['creado_en']
         ])
 
-    col_widths = [6, 10, 8, 12, 8, 18, 18, 16, 18, 18, 12, 8, 30, 18]
+    col_widths = [6, 10, 8, 12, 8, 18, 18, 16, 22, 18, 18, 18, 12, 8, 30, 18]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
 
