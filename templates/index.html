@@ -437,6 +437,7 @@
               <th style="width:120px">Detalle</th>
               <th style="width:110px">Origen</th>
               <th style="width:140px">Nombre</th>
+              <th style="width:110px">Calle</th>
               <th style="width:110px">Colonia</th>
               <th style="width:100px">Placa</th>
               <th style="width:65px">m³</th>
@@ -843,6 +844,7 @@ async function renderHistorial() {
         '<td>' + (r.detalle||'—') + '</td>' +
         '<td>' + (r.origen||'—') + '</td>' +
         '<td>' + (r.nombre||'—') + '</td>' +
+        '<td>' + (r.calle||'—') + '</td>' +
         '<td>' + (r.colonia||'—') + '</td>' +
         '<td>' + (r.placa||'—') + '</td>' +
         '<td>' + (r.m3 ? parseFloat(r.m3).toFixed(2) : '—') + '</td>' +
