@@ -2,17 +2,7 @@
 Tests de HTTP Basic Auth — no requieren base de datos real.
 Se parchea DATABASE_URL y AUTH_USER/AUTH_PASS antes de importar app.
 """
-import os, sys, pytest
-
-# Inyectar variables de entorno ANTES de importar app (el módulo las lee al cargar)
-os.environ['DATABASE_URL'] = 'postgresql://fake:fake@localhost/fake'
-os.environ['AUTH_USER'] = 'usuario_test'
-os.environ['AUTH_PASS'] = 'clave_test'
-
-# Forzar reimport limpio si el módulo ya estaba cargado
-if 'app' in sys.modules:
-    del sys.modules['app']
-
+import pytest
 import app as app_module
 from unittest.mock import patch, MagicMock
 

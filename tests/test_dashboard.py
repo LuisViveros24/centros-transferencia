@@ -2,15 +2,7 @@
 Tests para el endpoint /api/dashboard con parámetros desde/hasta
 y campos JSON renombrados.
 """
-import os, sys, base64, pytest
-
-os.environ.setdefault('DATABASE_URL', 'postgresql://fake:fake@localhost/fake')
-os.environ.setdefault('AUTH_USER', 'usuario_test')
-os.environ.setdefault('AUTH_PASS', 'clave_test')
-
-if 'app' in sys.modules:
-    del sys.modules['app']
-
+import base64, pytest
 import app as app_module
 from unittest.mock import patch, MagicMock
 
