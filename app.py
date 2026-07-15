@@ -133,8 +133,8 @@ def crear_registro():
                 folio = next_folio(d.get('tipo', 'ENTRADA'), cur)
                 cur.execute('''
                     INSERT INTO registros
-                    (folio,tipo,fecha,hora,pga,detalle,origen,nombre,colonia,vehiculo,placa,m3,obs)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    (folio,tipo,fecha,hora,pga,detalle,origen,nombre,calle,colonia,vehiculo,placa,m3,obs)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ''', (
                     folio,
                     d.get('tipo', 'ENTRADA'),
@@ -144,6 +144,7 @@ def crear_registro():
                     d.get('detalle', ''),
                     d.get('origen', ''),
                     d.get('nombre', ''),
+                    d.get('calle', ''),
                     d.get('colonia', ''),
                     d.get('vehiculo', ''),
                     d.get('placa', ''),
