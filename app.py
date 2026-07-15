@@ -167,7 +167,7 @@ def buscar_placa():
         with conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT vehiculo, detalle, origen, nombre, colonia
+                    SELECT vehiculo, detalle, origen, nombre, calle, colonia
                     FROM registros
                     WHERE UPPER(placa) LIKE %s AND tipo='ENTRADA'
                     ORDER BY id DESC LIMIT 1

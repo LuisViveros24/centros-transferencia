@@ -62,3 +62,22 @@ class TestCrearRegistroCalle:
         insert_calls = [c for c in cur.execute.call_args_list if 'INSERT INTO registros' in c.args[0]]
         sql, params = insert_calls[0].args
         assert _param_for_column(sql, params, 'calle') == ''
+
+
+class TestBuscarPlacaCalle:
+    def test_buscar_placa_incluye_calle_en_respuesta(self, client):
+        fila = {'vehiculo': 'CARROMATO', 'detalle': 'ESCOMBRO', 'origen': 'NEGOCIO',
+                'nombre': 'Juan Perez', 'calle': 'Av. Reforma', 'colonia': 'Centro'}
+        conn, cur = fake_db(fetchone_value=fila)
+        with patch('app.get_db', return_value=conn):
+            r = client.get('/api/registros/buscar-placa?q=ABC123', headers=AUTH)
+        assert r.status_code == 200
+        data = r.get_json()
+        assert data['calle'] == 'Av. Reforma'
+
+        select_calls = [
+            c for c in cur.execute.call_args_list
+            if c.args[0].strip().startswith('SELECT') and 'FROM registros' in c.args[0]
+        ]
+        assert select_calls, "No se ejecutó el SELECT de buscar-placa"
+        assert 'calle' in select_calls[0].args[0], "Falta calle en el SELECT de buscar-placa"
