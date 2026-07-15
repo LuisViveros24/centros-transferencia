@@ -37,7 +37,9 @@ Como parte de esta misma sesión de trabajo se corrigió además un bug ya detec
 
 ### 3.1 `app.py` → `init_db()` (desarrollo local)
 
-Agregar columna `calle` a la definición de tabla, junto a `colonia`:
+**Estado actual (verificado):** el `CREATE TABLE` de `init_db()` (líneas 32-48 de `app.py`) **no tiene columna `nombre`** — solo `migrate_data.py` (el script de producción) la define y la agrega vía `ALTER TABLE`. Esto es una brecha preexistente, no introducida por este cambio: si alguien crea una base de datos local nueva con `init_db()`, cualquier `INSERT` de entrada fallaría porque `crear_registro()` ya inserta incondicionalmente en la columna `nombre`, que no existiría.
+
+**Decisión de alcance:** ya que se va a editar este mismo bloque para agregar `calle`, se corrige también la brecha agregando `nombre` al mismo tiempo (mismo criterio ya aplicado en la sección 4.3 para los headers de Excel). Resultado:
 
 ```sql
 CREATE TABLE IF NOT EXISTS registros (
@@ -220,3 +222,4 @@ Los registros de tipo **SALIDA** no tienen `calle` — la celda mostrará `—`,
 - [ ] El registro de Salida sigue funcionando sin cambios (no pide ni guarda Calle)
 - [ ] El Dashboard no cambia — no aparece ninguna tarjeta o desglose nuevo relacionado con Calle
 - [ ] En una base de datos ya existente en producción, correr `migrate_data.py` agrega la columna `calle` sin borrar datos existentes
+- [ ] `init_db()` (desarrollo local) crea la tabla con las columnas `nombre` y `calle` incluidas, permitiendo registrar una entrada en una base local nueva sin error
