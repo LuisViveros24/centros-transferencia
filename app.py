@@ -267,7 +267,7 @@ def dashboard():
                 otros = qa("""
                     SELECT origen, COUNT(*) c FROM registros
                     WHERE tipo='ENTRADA'
-                      AND origen NOT IN ('NEGOCIO','RECOLECTORES','CASA-HABITACIÓN','PASA','LA OLA')
+                      AND origen NOT IN ('NEGOCIO','RECOLECTORES','CASA-HABITACIÓN','CEA','LA OLA','CONTRATISTAS')
                       AND origen IS NOT NULL AND origen != '' AND origen != '—'
                     GROUP BY origen
                 """)
