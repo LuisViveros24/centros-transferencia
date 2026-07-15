@@ -72,7 +72,7 @@
 
   /* forms */
   .form-grid{display:grid;gap:14px}
-  .cols-3{grid-template-columns:1fr 1fr 1fr}.cols-2{grid-template-columns:1fr 1fr}
+  .cols-3{grid-template-columns:1fr 1fr 1fr}.cols-2{grid-template-columns:1fr 1fr}.cols-4{grid-template-columns:1fr 1fr 1fr 1fr}
   .field{display:flex;flex-direction:column;gap:5px}
   .field label{font-size:12px;color:var(--text2);font-weight:500;display:flex;align-items:center;gap:3px}
   .req{color:var(--red);font-size:13px}
@@ -143,7 +143,7 @@
   .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--blue);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
   @keyframes spin{to{transform:rotate(360deg)}}
 
-  @media(max-width:900px){.sidebar{width:160px}.pga-grid,.pga-flow-grid{grid-template-columns:repeat(3,1fr)}.metrics-grid{grid-template-columns:repeat(2,1fr)}.cols-3{grid-template-columns:1fr 1fr}}
+  @media(max-width:900px){.sidebar{width:160px}.pga-grid,.pga-flow-grid{grid-template-columns:repeat(3,1fr)}.metrics-grid{grid-template-columns:repeat(2,1fr)}.cols-3{grid-template-columns:1fr 1fr}.cols-4{grid-template-columns:1fr 1fr}}
   /* hamburger button — solo visible en móvil */
   .menu-btn{display:none;background:transparent;border:none;cursor:pointer;padding:6px;border-radius:var(--radius);color:var(--text2);flex-shrink:0}
   .menu-btn:hover{background:var(--bg2)}
@@ -157,7 +157,7 @@
     .sidebar{display:none;position:fixed;top:56px;left:0;height:calc(100vh - 56px);z-index:150;width:220px;box-shadow:4px 0 16px rgba(0,0,0,0.18)}
     .sidebar.open{display:flex}
     .content{padding:16px}
-    .cols-2,.cols-3{grid-template-columns:1fr}
+    .cols-2,.cols-3,.cols-4{grid-template-columns:1fr}
     .pga-grid{grid-template-columns:repeat(2,1fr)}
     .pga-flow-grid{grid-template-columns:repeat(2,1fr)}
     .metrics-grid{grid-template-columns:repeat(2,1fr)}
@@ -250,7 +250,7 @@
             style="min-height:56px"></textarea>
           <div class="char-count" id="e-nombre-ctr">0/200</div>
         </div>
-        <div class="form-grid cols-3">
+        <div class="form-grid cols-4">
           <div class="field"><label>Tipo de vehículo</label>
             <select id="e-vehiculo">
               <option value="">— Seleccionar —</option>
@@ -270,6 +270,7 @@
               <div class="char-count" id="e-ctr">0/60</div>
             </div>
           </div>
+          <div class="field"><label>Calle</label><input type="text" id="e-calle" placeholder="Ej. Av. Reforma..."/></div>
           <div class="field"><label>Colonia de origen</label><input type="text" id="e-colonia" placeholder="Ej. Col. Centro..."/></div>
         </div>
         <div class="form-grid cols-2" style="margin-top:14px">
@@ -587,7 +588,7 @@ function autoNow(fId, hId) {
 
 // ── Limpiar ────────────────────────────────────────────────────
 function limpiarE() {
-  ['e-fecha','e-hora','e-origen','e-nombre','e-vehiculo','e-carga','e-colonia','e-placa','e-m3','e-obs','e-otro-txt']
+  ['e-fecha','e-hora','e-origen','e-nombre','e-vehiculo','e-carga','e-calle','e-colonia','e-placa','e-m3','e-obs','e-otro-txt']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('e-otro-wrap').classList.remove('vis');
   document.getElementById('e-ctr').textContent = '0/60';
@@ -625,6 +626,7 @@ async function registrarEntrada() {
         pga, detalle: carga || '',
         origen,
         nombre: document.getElementById('e-nombre').value.trim(),
+        calle: document.getElementById('e-calle').value.trim(),
         colonia: document.getElementById('e-colonia').value.trim(),
         vehiculo: document.getElementById('e-vehiculo').value,
         placa: document.getElementById('e-placa').value.trim().toUpperCase(),
@@ -931,6 +933,7 @@ function aplicarAutocompletado() {
   if (r.vehiculo) document.getElementById('e-vehiculo').value = r.vehiculo;
   if (r.origen)   document.getElementById('e-origen').value   = r.origen;
   if (r.nombre)   document.getElementById('e-nombre').value   = r.nombre;
+  if (r.calle)    document.getElementById('e-calle').value    = r.calle;
   if (r.colonia)  document.getElementById('e-colonia').value  = r.colonia;
   if (r.detalle) {
     const sel = document.getElementById('e-carga');
