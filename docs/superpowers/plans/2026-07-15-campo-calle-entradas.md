@@ -146,6 +146,8 @@ git commit -m "fix: init_db() incluye columnas nombre y calle en registros"
 
 - [ ] **Step 1: Write the failing test**
 
+> **Nota (actualizado tras Task 1):** `tests/conftest.py` ahora centraliza el setup de `DATABASE_URL`/`AUTH_USER`/`AUTH_PASS` con asignación directa (no `setdefault`), y ningún archivo de test debe hacer `del sys.modules['app']` ni reimportar — eso causaba fallos dependientes del orden de recolección de pytest (ver commits `2bbc48f`/`4bcaaab`). `tests/test_registros.py` debe usar un `import app as app_module` plano, sin boilerplate de entorno propio.
+
 Create `tests/test_registros.py`:
 
 ```python
@@ -153,16 +155,8 @@ Create `tests/test_registros.py`:
 Tests para POST /api/registros (incluye calle) y
 GET /api/registros/buscar-placa (autocompletado incluye calle).
 """
-import os, sys, base64, pytest
+import base64, pytest
 from unittest.mock import patch, MagicMock
-
-os.environ.setdefault('DATABASE_URL', 'postgresql://fake:fake@localhost/fake')
-os.environ.setdefault('AUTH_USER', 'usuario_test')
-os.environ.setdefault('AUTH_PASS', 'clave_test')
-
-if 'app' in sys.modules:
-    del sys.modules['app']
-
 import app as app_module
 
 AUTH = {'Authorization': 'Basic ' + base64.b64encode(b'usuario_test:clave_test').decode()}
@@ -376,6 +370,8 @@ git commit -m "feat: autocompletado por placa incluye calle"
 
 - [ ] **Step 1: Write the failing test**
 
+> **Nota (actualizado tras Task 1):** igual que en Task 2 — no reimportar `app`, no manejar `sys.modules`. `tests/conftest.py` ya deja el entorno listo.
+
 Create `tests/test_export.py`:
 
 ```python
@@ -383,16 +379,8 @@ Create `tests/test_export.py`:
 Tests para GET /api/export/excel — verifica que el reporte incluya
 las columnas Nombre y Calle.
 """
-import os, sys, io, base64, pytest
+import io, base64, pytest
 from unittest.mock import patch, MagicMock
-
-os.environ.setdefault('DATABASE_URL', 'postgresql://fake:fake@localhost/fake')
-os.environ.setdefault('AUTH_USER', 'usuario_test')
-os.environ.setdefault('AUTH_PASS', 'clave_test')
-
-if 'app' in sys.modules:
-    del sys.modules['app']
-
 import app as app_module
 import openpyxl
 
