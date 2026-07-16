@@ -121,10 +121,11 @@
   .table-scroll{overflow-x:auto}
   table{width:100%;border-collapse:collapse;font-size:12px;min-width:780px}
   thead th{background:var(--bg2);font-weight:600;color:var(--text2);padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  thead tr.filtros-row th{padding:6px 8px;background:var(--bg2)}
+  .filtro-input{padding:4px 6px;font-size:12px;text-transform:none;letter-spacing:normal;font-weight:400}
   tbody td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
   tbody tr:last-child td{border-bottom:none}
   tbody tr:hover td{background:var(--bg2)}
-  .empty-state{text-align:center;padding:40px 20px;color:var(--text2);font-size:13px}
 
   /* badges */
   .badge{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;letter-spacing:.03em}
@@ -411,6 +412,7 @@
         <div class="table-title">Historial de registros</div>
         <div class="table-actions">
           <span class="count-pill" id="h-count">0 registros</span>
+          <button class="btn btn-ghost" onclick="limpiarFiltrosHistorial()">Limpiar filtros</button>
           <button class="btn btn-ghost" onclick="exportarExcel()">Exportar Excel</button>
         </div>
       </div>
@@ -442,6 +444,23 @@
               <th style="width:100px">Placa</th>
               <th style="width:65px">m³</th>
               <th>Observaciones</th>
+            </tr>
+            <tr class="filtros-row">
+              <th></th>
+              <th></th>
+              <th><input type="text" class="filtro-input" data-filtro="folio" placeholder="Filtrar"/></th>
+              <th><select class="filtro-input" data-filtro="tipo"><option value="">Todos</option><option>ENTRADA</option><option>SALIDA</option></select></th>
+              <th><input type="date" class="filtro-input" data-filtro="fecha"/></th>
+              <th></th>
+              <th><select class="filtro-input" data-filtro="pga" id="filtro-pga"><option value="">Todos</option></select></th>
+              <th></th>
+              <th><select class="filtro-input" data-filtro="origen"><option value="">Todos</option><option>NEGOCIO</option><option>RECOLECTORES</option><option>CASA-HABITACIÓN</option><option>CEA</option><option>LA OLA</option><option>CONTRATISTAS</option></select></th>
+              <th><input type="text" class="filtro-input" data-filtro="nombre" placeholder="Filtrar"/></th>
+              <th><input type="text" class="filtro-input" data-filtro="calle" placeholder="Filtrar"/></th>
+              <th><input type="text" class="filtro-input" data-filtro="colonia" placeholder="Filtrar"/></th>
+              <th><input type="text" class="filtro-input" data-filtro="placa" placeholder="Filtrar"/></th>
+              <th></th>
+              <th><input type="text" class="filtro-input" data-filtro="obs" placeholder="Filtrar"/></th>
             </tr></thead>
             <tbody id="h-body"></tbody>
           </table>
@@ -846,6 +865,7 @@ async function renderDashboard() {
 // locales correría la fecha un día hacia atrás en UTC-6.
 function fechaToYMD(rawFecha) {
   const d = new Date(rawFecha);
+  if (isNaN(d)) return '';
   return d.getUTCFullYear() + '-' + String(d.getUTCMonth()+1).padStart(2,'0') + '-' + String(d.getUTCDate()).padStart(2,'0');
 }
 function fechaDisplay(rawFecha) {
@@ -913,6 +933,30 @@ function aplicarFiltrosHistorial() {
   const master = document.querySelector('#h-tbl thead input[type=checkbox]');
   if (master) master.checked = false;
   actualizarBarraAccion();
+}
+
+let _filtroTimer = null;
+function _initFiltrosHistorial() {
+  const pgaSel = document.getElementById('filtro-pga');
+  pgaSel.innerHTML = '<option value="">Todos</option>' + PGAS.map(p => '<option>' + p + '</option>').join('');
+  document.querySelectorAll('.filtro-input').forEach(el => {
+    const evt = (el.tagName === 'SELECT' || el.type === 'date') ? 'change' : 'input';
+    el.addEventListener(evt, () => {
+      _historialFiltros[el.dataset.filtro] = el.value;
+      if (evt === 'input') {
+        clearTimeout(_filtroTimer);
+        _filtroTimer = setTimeout(aplicarFiltrosHistorial, 250);
+      } else {
+        aplicarFiltrosHistorial();
+      }
+    });
+  });
+}
+
+function limpiarFiltrosHistorial() {
+  document.querySelectorAll('.filtro-input').forEach(el => el.value = '');
+  Object.keys(_historialFiltros).forEach(k => _historialFiltros[k] = '');
+  aplicarFiltrosHistorial();
 }
 
 // ── Historial ──────────────────────────────────────────────────
@@ -1032,6 +1076,7 @@ autoNow('e-fecha','e-hora');
 autoNow('s-fecha','s-hora');
 updateNavBadges();
 _initPlacaHint();
+_initFiltrosHistorial();
 
 document.getElementById('topbar-date').textContent =
   new Date().toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
