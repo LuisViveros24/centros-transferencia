@@ -46,6 +46,8 @@ Una segunda fila `<tr>` dentro de `<thead>` (`templates/index.html`, tabla `#h-t
 
 Todos los filtros activos se combinan con **Y** (deben cumplirse todos a la vez). Un filtro vacío/en "Todos" no restringe nada.
 
+> El `<select>` de PGA debe generarse a partir de la constante `PGAS` ya existente (`templates/index.html:454`), no repetir la lista de valores en un segundo lugar del código.
+
 ### 2.3 Arquitectura: filtrado 100% en el navegador
 
 `renderHistorial()` (`templates/index.html:828`) ya hace `await api('/api/registros')` **sin parámetros** — trae siempre la tabla completa de una sola vez. No se toca el backend ni el endpoint `GET /api/registros`.
@@ -78,9 +80,19 @@ Usa los getters **UTC** (no locales) a propósito: como `fecha` es una columna `
 
 ### 2.5 "Limpiar filtros"
 
-Botón nuevo junto a "Exportar Excel" en `.table-actions` (línea ~407-410): `limpiarFiltrosHistorial()` vacía los 8 campos con filtro, reinicia `_historialFiltros`, y vuelve a llamar `aplicarFiltrosHistorial()`.
+Botón nuevo junto a "Exportar Excel" en `.table-actions` (línea ~407-410): `limpiarFiltrosHistorial()` vacía los **10** campos con filtro (Folio, Tipo, Fecha, PGA, Origen, Nombre, Calle, Colonia, Placa, Observaciones — la lista completa de la tabla en 2.2), reinicia `_historialFiltros`, y vuelve a llamar `aplicarFiltrosHistorial()`.
 
-### 2.6 Fuera de alcance
+### 2.6 Contador y estado vacío con filtros activos
+
+`#h-count` (el pill "N registros") pasa a reflejar siempre el **conjunto filtrado/visible**, no el total cargado — se actualiza dentro de `aplicarFiltrosHistorial()` en cada re-render, usando `filtered.length` en vez de `rows.length`.
+
+Cuando el filtrado da 0 resultados, `#h-empty` debe distinguir dos casos, porque son mensajes distintos para el usuario:
+- **Sin filtros activos y 0 registros en total** (base de datos vacía): se mantiene el mensaje actual, "No hay registros aún."
+- **Con algún filtro activo y 0 coincidencias**: nuevo mensaje, "Ningún registro coincide con los filtros." — para no dar a entender que no hay datos cuando en realidad el filtro simplemente no encontró nada.
+
+`aplicarFiltrosHistorial()` decide cuál mostrar comparando `_historialRows.length` (total real) contra si hay algún filtro con valor en `_historialFiltros`.
+
+### 2.7 Fuera de alcance
 
 - `GET /api/registros` no cambia — sigue devolviendo todo, sin parámetros de filtro por columna.
 - `GET /api/export/excel` no cambia — la exportación sigue siendo de **todos** los registros, sin importar los filtros activos en pantalla. No se pidió que la exportación respete el filtro.
@@ -167,7 +179,9 @@ En `renderDashboard()` (`templates/index.html:699`), justo después del bloque q
 - [ ] Combinar dos o más filtros aplica todos a la vez (Y lógico)
 - [ ] "Seleccionar todos" y "Eliminar seleccionados" solo afectan las filas visibles según el filtro activo
 - [ ] Cambiar un filtro limpia cualquier selección previa
-- [ ] El botón "Limpiar filtros" vacía todos los filtros de un clic
+- [ ] El botón "Limpiar filtros" vacía los 10 campos con filtro de un clic
+- [ ] El pill de conteo ("N registros") refleja el conjunto filtrado, no el total cargado
+- [ ] Si un filtro no encuentra nada, el mensaje dice "Ningún registro coincide con los filtros." (no "No hay registros aún.")
 - [ ] La columna Fecha se muestra en formato `DD/MM/YYYY` en vez del string HTTP crudo
 - [ ] La exportación a Excel sigue exportando todos los registros, sin importar los filtros activos en pantalla
 
