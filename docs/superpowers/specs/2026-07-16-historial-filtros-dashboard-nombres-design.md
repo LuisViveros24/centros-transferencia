@@ -78,7 +78,16 @@ function fechaToYMD(rawFecha) {
 ```
 Usa los getters **UTC** (no locales) a propósito: como `fecha` es una columna `DATE` sin hora, el `"00:00:00 GMT"` es solo un artefacto de serialización, no un instante real que deba convertirse a hora de México — convertirlo con getters locales correría la fecha un día hacia atrás (mismo tipo de bug ya corregido antes en el Dashboard con `dateToLocalStr`, ver `2026-04-11-historial-dashboard-features-design.md`).
 
-**Incluido en esta misma tarea, por estar directamente relacionado:** ya que se necesita `fechaToYMD()` para el filtro, se usa también para mostrar la columna Fecha del Historial como `DD/MM/YYYY` en vez del string HTTP crudo — es una mejora pequeña y de bajo riesgo a un problema real de legibilidad (la celda se ve truncada y con formato técnico en la captura del usuario), directamente en el código que ya se está tocando.
+**Incluido en esta misma tarea, por estar directamente relacionado:** ya que se necesita `fechaToYMD()` para el filtro, se usa también para mostrar la columna Fecha del Historial en un formato legible en vez del string HTTP crudo — es una mejora pequeña y de bajo riesgo a un problema real de legibilidad (la celda se ve truncada y con formato técnico en la captura del usuario), directamente en el código que ya se está tocando.
+
+`fechaToYMD()` devuelve `"YYYY-MM-DD"` (necesario para comparar contra el valor de `<input type="date">`), **no** `"DD/MM/YYYY"` directamente. Para mostrar la celda en `DD/MM/YYYY`, se reordena ese mismo resultado:
+```javascript
+function fechaDisplay(rawFecha) {
+  const [y, m, d] = fechaToYMD(rawFecha).split('-');
+  return d + '/' + m + '/' + y;
+}
+```
+La celda de Fecha en el render de filas pasa de `'<td>' + r.fecha + '</td>'` a `'<td>' + fechaDisplay(r.fecha) + '</td>'`.
 
 ### 2.5 "Limpiar filtros"
 
@@ -90,7 +99,7 @@ Botón nuevo junto a "Exportar Excel" en `.table-actions` (línea ~407-410): `li
 
 **Cambio respecto al comportamiento actual:** hoy, cuando `rows.length === 0`, `renderHistorial()` oculta la tabla completa (`tbl.style.display='none'`) y muestra un `<div id="h-empty">` aparte. Eso ya no sirve porque ocultaría también la fila de filtros (contradice 2.1 — "siempre visible"). El nuevo comportamiento:
 
-- La tabla (`<thead>`, incluida la fila de filtros) **siempre se muestra** — se elimina el toggle `tbl.style.display='none'`.
+- La tabla (`<thead>`, incluida la fila de filtros) **siempre se muestra** — se elimina el toggle `tbl.style.display='none'` en `renderHistorial()` (líneas 832-835 actuales), **y también** se quita el atributo `style="display:none"` que hoy trae la propia etiqueta `<table id="h-tbl">` en el HTML (línea 424) — es el único lugar del código que hoy limpia ese estilo inline; si se deja ahí sin quitarlo, la tabla quedaría oculta para siempre después del cambio, porque ya no habría ningún código que la vuelva a mostrar.
 - Cuando `filtered.length === 0`, en vez de vaciar `#h-body`, se le pone una sola fila con un mensaje, usando `colspan` para ocupar todas las columnas: `<tr><td colspan="15" style="text-align:center;color:var(--text2);padding:20px">...</td></tr>`.
 - El mensaje dentro de esa fila distingue dos casos:
   - **Sin ningún filtro activo y `_historialRows.length === 0`** (base de datos genuinamente vacía): "No hay registros aún."
