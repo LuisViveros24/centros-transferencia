@@ -425,8 +425,7 @@
 
       <div class="table-wrap">
         <div class="table-scroll">
-          <div class="empty-state" id="h-empty">No hay registros aún.</div>
-          <table id="h-tbl" style="display:none">
+          <table id="h-tbl">
             <thead><tr>
               <th style="width:36px;text-align:center"><input type="checkbox" title="Seleccionar todos" onchange="toggleTodos(this)"/></th>
               <th style="width:55px">ID</th>
@@ -840,38 +839,89 @@ async function renderDashboard() {
   }
 }
 
+// ── Fecha: normalización y formato ─────────────────────────────
+// r.fecha llega como string HTTP ("Thu, 16 Jul 2026 00:00:00 GMT"), no ISO.
+// Se usan getters UTC a propósito: fecha es una columna DATE sin hora, así que
+// "00:00:00 GMT" es solo artefacto de serialización — convertir con getters
+// locales correría la fecha un día hacia atrás en UTC-6.
+function fechaToYMD(rawFecha) {
+  const d = new Date(rawFecha);
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth()+1).padStart(2,'0') + '-' + String(d.getUTCDate()).padStart(2,'0');
+}
+function fechaDisplay(rawFecha) {
+  const [y, m, d] = fechaToYMD(rawFecha).split('-');
+  return d + '/' + m + '/' + y;
+}
+
+// ── Historial: estado de filtros ───────────────────────────────
+let _historialRows = [];
+let _historialFiltros = { folio:'', tipo:'', fecha:'', pga:'', origen:'', nombre:'', calle:'', colonia:'', placa:'', obs:'' };
+
+function matchesFiltroHistorial(r) {
+  const f = _historialFiltros;
+  const contiene = (val, filtro) => !filtro || String(val||'').toLowerCase().includes(filtro.toLowerCase());
+  const igual    = (val, filtro) => !filtro || String(val||'') === filtro;
+  if (!contiene(r.folio,   f.folio))   return false;
+  if (!igual(r.tipo,       f.tipo))    return false;
+  if (f.fecha && fechaToYMD(r.fecha) !== f.fecha) return false;
+  if (!igual(r.pga,        f.pga))     return false;
+  if (!igual(r.origen,     f.origen))  return false;
+  if (!contiene(r.nombre,  f.nombre))  return false;
+  if (!contiene(r.calle,   f.calle))   return false;
+  if (!contiene(r.colonia, f.colonia)) return false;
+  if (!contiene(r.placa,   f.placa))   return false;
+  if (!contiene(r.obs,     f.obs))     return false;
+  return true;
+}
+
+function filaHistorial(r) {
+  return '<tr>' +
+    '<td style="text-align:center"><input type="checkbox" value="' + r.id + '" onchange="actualizarBarraAccion()"/></td>' +
+    '<td class="mono">' + r.id + '</td>' +
+    '<td class="mono">' + r.folio + '</td>' +
+    '<td><span class="badge ' + (r.tipo==='ENTRADA'?'badge-in':'badge-out') + '">' + (r.tipo==='ENTRADA'?'ENT':'SAL') + '</span></td>' +
+    '<td>' + fechaDisplay(r.fecha) + '</td>' +
+    '<td>' + (r.hora||'—') + '</td>' +
+    '<td style="font-weight:600">' + r.pga + '</td>' +
+    '<td>' + (r.detalle||'—') + '</td>' +
+    '<td>' + (r.origen||'—') + '</td>' +
+    '<td>' + (r.nombre||'—') + '</td>' +
+    '<td>' + (r.calle||'—') + '</td>' +
+    '<td>' + (r.colonia||'—') + '</td>' +
+    '<td>' + (r.placa||'—') + '</td>' +
+    '<td>' + (r.m3 ? parseFloat(r.m3).toFixed(2) : '—') + '</td>' +
+    '<td style="max-width:200px;color:var(--text2)">' + (r.obs||'—') + '</td>' +
+  '</tr>';
+}
+
+function aplicarFiltrosHistorial() {
+  const body = document.getElementById('h-body');
+  const filtered = _historialRows.filter(matchesFiltroHistorial);
+  document.getElementById('h-count').textContent = filtered.length + (filtered.length===1?' registro':' registros');
+
+  if (!filtered.length) {
+    const hayFiltro = Object.values(_historialFiltros).some(v => v);
+    const msg = (!hayFiltro && _historialRows.length === 0)
+      ? 'No hay registros aún.'
+      : 'Ningún registro coincide con los filtros.';
+    body.innerHTML = '<tr><td colspan="15" style="text-align:center;color:var(--text2);padding:20px">' + msg + '</td></tr>';
+  } else {
+    body.innerHTML = filtered.map(filaHistorial).join('');
+  }
+
+  // El conjunto visible cambió: limpiar selección para no arrastrar checks ocultos.
+  const master = document.querySelector('#h-tbl thead input[type=checkbox]');
+  if (master) master.checked = false;
+  actualizarBarraAccion();
+}
+
 // ── Historial ──────────────────────────────────────────────────
 async function renderHistorial() {
   try {
-    const rows = await api('/api/registros');
-    const empty = document.getElementById('h-empty');
-    const tbl   = document.getElementById('h-tbl');
-    document.getElementById('h-count').textContent = rows.length + (rows.length===1?' registro':' registros');
-    if (!rows.length) { empty.style.display=''; tbl.style.display='none'; return; }
-    empty.style.display='none'; tbl.style.display='';
-    document.getElementById('h-body').innerHTML = rows.map(r =>
-      '<tr>' +
-        '<td style="text-align:center"><input type="checkbox" value="' + r.id + '" onchange="actualizarBarraAccion()"/></td>' +
-        '<td class="mono">' + r.id + '</td>' +
-        '<td class="mono">' + r.folio + '</td>' +
-        '<td><span class="badge ' + (r.tipo==='ENTRADA'?'badge-in':'badge-out') + '">' + (r.tipo==='ENTRADA'?'ENT':'SAL') + '</span></td>' +
-        '<td>' + r.fecha + '</td>' +
-        '<td>' + (r.hora||'—') + '</td>' +
-        '<td style="font-weight:600">' + r.pga + '</td>' +
-        '<td>' + (r.detalle||'—') + '</td>' +
-        '<td>' + (r.origen||'—') + '</td>' +
-        '<td>' + (r.nombre||'—') + '</td>' +
-        '<td>' + (r.calle||'—') + '</td>' +
-        '<td>' + (r.colonia||'—') + '</td>' +
-        '<td>' + (r.placa||'—') + '</td>' +
-        '<td>' + (r.m3 ? parseFloat(r.m3).toFixed(2) : '—') + '</td>' +
-        '<td style="max-width:200px;color:var(--text2)">' + (r.obs||'—') + '</td>' +
-      '</tr>'
-    ).join('');
+    _historialRows = await api('/api/registros');
+    aplicarFiltrosHistorial();
   } catch(e) {
     toast('Error al cargar el historial.');
-  } finally {
-    actualizarBarraAccion();
   }
 }
 
