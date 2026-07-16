@@ -39,9 +39,6 @@
   .topbar-title{font-size:14px;font-weight:600}
   .topbar-sub{font-size:12px;color:var(--text2)}
   .topbar-date{margin-left:auto;font-size:12px;color:var(--text2);background:var(--bg2);border:1px solid var(--border);padding:4px 12px;border-radius:var(--radius)}
-  .conn-dot{width:8px;height:8px;border-radius:50%;background:#ccc;flex-shrink:0;transition:background .3s}
-  .conn-dot.ok{background:var(--green)}
-  .conn-dot.err{background:var(--red)}
 
   /* layout */
   .main{display:flex;height:calc(100vh - 56px)}
@@ -136,7 +133,7 @@
   .mono{font-family:var(--mono);font-size:11px;color:var(--text2)}
 
   /* toast */
-  #toast{position:fixed;bottom:24px;right:24px;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:var(--radius);font-size:13px;z-index:9999;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none;white-space:nowrap}
+  #toast{position:fixed;bottom:24px;right:24px;left:24px;max-width:360px;margin-left:auto;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:var(--radius);font-size:13px;z-index:9999;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none;white-space:normal}
   #toast.show{opacity:1;transform:translateY(0)}
 
   /* loading */
@@ -192,7 +189,6 @@
     <div class="topbar-title">Centros de Transferencia</div>
     <div class="topbar-sub">Control de flujo de viajes</div>
   </div>
-  <div class="conn-dot" id="conn-dot" title="Estado del servidor"></div>
   <div class="topbar-date" id="topbar-date"></div>
 </div>
 
@@ -460,25 +456,24 @@ let chPga = null, chM3Pga = null, chHist = null;
 
 // ── API helpers ────────────────────────────────────────────────
 async function api(path, opts={}) {
-  const res = await fetch(path, {
-    headers: {'Content-Type':'application/json'},
-    ...opts
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
-// ── Connectivity check ─────────────────────────────────────────
-async function checkConn() {
+  const { timeoutMs = 15000, ...fetchOpts } = opts;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    await fetch('/api/registros?fecha=1900-01-01');
-    document.getElementById('conn-dot').className = 'conn-dot ok';
-  } catch(e) {
-    document.getElementById('conn-dot').className = 'conn-dot err';
+    const res = await fetch(path, {
+      headers: {'Content-Type':'application/json'},
+      ...fetchOpts,
+      signal: controller.signal
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return await res.json();
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('TIMEOUT');
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
 }
-setInterval(checkConn, 10000);
-checkConn();
 
 // ── Toast ──────────────────────────────────────────────────────
 function toast(msg) {
@@ -638,11 +633,14 @@ async function registrarEntrada() {
     limpiarE();
     toast('Entrada ' + res.folio + ' registrada — ' + pga);
     updateNavBadges();
+    btn.innerHTML = 'Registrar entrada';
   } catch(e) {
-    toast('Error al guardar. Verifica la conexión.');
+    toast(e.message === 'TIMEOUT'
+      ? 'Tiempo de espera agotado. Verifica tu conexión y presiona Reintentar.'
+      : 'Error al guardar. Verifica la conexión y presiona Reintentar.');
+    btn.innerHTML = 'Reintentar';
   } finally {
     btn.disabled = false;
-    btn.innerHTML = 'Registrar entrada';
   }
 }
 
@@ -673,11 +671,14 @@ async function registrarSalida() {
     limpiarS();
     toast('Salida ' + res.folio + ' registrada — ' + pga);
     updateNavBadges();
+    btn.innerHTML = 'Registrar salida';
   } catch(e) {
-    toast('Error al guardar. Verifica la conexión.');
+    toast(e.message === 'TIMEOUT'
+      ? 'Tiempo de espera agotado. Verifica tu conexión y presiona Reintentar.'
+      : 'Error al guardar. Verifica la conexión y presiona Reintentar.');
+    btn.innerHTML = 'Reintentar';
   } finally {
     btn.disabled = false;
-    btn.innerHTML = 'Registrar salida';
   }
 }
 
