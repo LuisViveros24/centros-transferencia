@@ -112,3 +112,28 @@ class TestNombresFrecuentes:
         sql = nf[0]
         assert "tipo='ENTRADA'" in sql, "La consulta debe filtrar solo ENTRADA"
         assert 'LOWER(TRIM(nombre))' in sql, "Debe agrupar por nombre normalizado"
+
+    def test_dashboard_nombres_frecuentes_con_origen(self, client):
+        """Con ?origen=X, la consulta filtra por ese origen y baja el umbral a > 1."""
+        conn = fake_db()
+        cur = conn.cursor.return_value
+        with patch('app.get_db', return_value=conn):
+            client.get('/api/dashboard?desde=2026-07-01&hasta=2026-07-31&origen=CONTRATISTAS', headers=AUTH)
+        calls = [c for c in cur.execute.call_args_list if 'ARRAY_AGG(nombre' in c.args[0]]
+        assert calls, "No se ejecutó la consulta de nombres frecuentes"
+        sql, params = calls[0].args[0], calls[0].args[1]
+        assert 'AND origen = %s' in sql, "Debe filtrar por origen"
+        assert 'HAVING COUNT(*) > 1' in sql, "Con origen el umbral debe ser > 1"
+        assert 'CONTRATISTAS' in params, "El origen debe pasarse como parámetro"
+
+    def test_dashboard_nombres_frecuentes_sin_origen_no_filtra(self, client):
+        """Sin ?origen, la consulta NO filtra por origen y mantiene umbral > 3."""
+        conn = fake_db()
+        cur = conn.cursor.return_value
+        with patch('app.get_db', return_value=conn):
+            client.get('/api/dashboard?desde=2026-07-01&hasta=2026-07-31', headers=AUTH)
+        calls = [c for c in cur.execute.call_args_list if 'ARRAY_AGG(nombre' in c.args[0]]
+        assert calls
+        sql = calls[0].args[0]
+        assert 'AND origen = %s' not in sql, "Sin origen no debe filtrar por origen"
+        assert 'HAVING COUNT(*) > 3' in sql, "Sin origen el umbral debe ser > 3"

@@ -205,6 +205,7 @@ def dashboard():
     _today = str(date.today())
     desde = request.args.get('desde', _today)
     hasta  = request.args.get('hasta',  _today)
+    origen_filtro = request.args.get('origen', '').strip()
     # Validate date format; fall back to today on bad input
     for _s in (desde, hasta):
         try:
@@ -287,17 +288,28 @@ def dashboard():
                     GROUP BY fecha ORDER BY fecha
                 """, [desde, hasta])
 
-                nombres_frecuentes = qa("""
-                    SELECT
-                        (ARRAY_AGG(nombre ORDER BY id DESC))[1] AS nombre,
-                        COUNT(*) AS c
-                    FROM registros
-                    WHERE tipo='ENTRADA' AND fecha BETWEEN %s AND %s
-                      AND nombre IS NOT NULL AND TRIM(nombre) != ''
-                    GROUP BY LOWER(TRIM(nombre))
-                    HAVING COUNT(*) > 3
-                    ORDER BY c DESC
-                """, [desde, hasta])
+                # Personas frecuentes: sin filtro de origen usa umbral > 3;
+                # con un origen específico baja a > 1 (cada persona reparte sus
+                # entradas entre varios orígenes, así que el conteo por origen es menor).
+                # El umbral es un entero de nuestro propio código (1 o 3), no entrada
+                # del usuario; el origen sí va como parámetro para evitar inyección.
+                _nf_params = [desde, hasta]
+                _nf_origen_clause = ''
+                _nf_umbral = 3
+                if origen_filtro:
+                    _nf_origen_clause = ' AND origen = %s'
+                    _nf_params.append(origen_filtro)
+                    _nf_umbral = 1
+                nombres_frecuentes = qa(
+                    "SELECT (ARRAY_AGG(nombre ORDER BY id DESC))[1] AS nombre, COUNT(*) AS c "
+                    "FROM registros "
+                    "WHERE tipo='ENTRADA' AND fecha BETWEEN %s AND %s"
+                    + _nf_origen_clause +
+                    " AND nombre IS NOT NULL AND TRIM(nombre) != '' "
+                    "GROUP BY LOWER(TRIM(nombre)) "
+                    "HAVING COUNT(*) > " + str(_nf_umbral) + " "
+                    "ORDER BY c DESC",
+                    _nf_params)
     finally:
         conn.close()
 

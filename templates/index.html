@@ -396,8 +396,15 @@
       </div>
 
       <div class="card">
-        <div class="card-label">Personas frecuentes (más de 3 entradas en el periodo)</div>
-        <div id="nombres-frecuentes" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:4px"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div class="card-label" style="margin:0">Personas frecuentes</div>
+          <select id="nf-origen" style="font-size:12px;padding:4px 8px;width:auto" onchange="renderDashboard()">
+            <option value="">Todos (más de 3)</option>
+            <option>NEGOCIO</option><option>RECOLECTORES</option><option>CASA-HABITACIÓN</option>
+            <option>CEA</option><option>LA OLA</option><option>CONTRATISTAS</option>
+          </select>
+        </div>
+        <div id="nombres-frecuentes" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:10px"></div>
       </div>
 
       <div class="btn-row" style="justify-content:flex-start;gap:10px">
@@ -724,7 +731,10 @@ async function renderDashboard() {
     const desde = document.getElementById('d-desde').value || todayStr();
     const hasta  = document.getElementById('d-hasta').value  || todayStr();
     if (desde > hasta) { toast('La fecha "Desde" debe ser anterior o igual a "Hasta".'); return; }
-    const d = await api('/api/dashboard?desde=' + desde + '&hasta=' + hasta);
+    const nfOrigenEl = document.getElementById('nf-origen');
+    const nfOrigen = nfOrigenEl ? nfOrigenEl.value : '';
+    const d = await api('/api/dashboard?desde=' + desde + '&hasta=' + hasta +
+      (nfOrigen ? '&origen=' + encodeURIComponent(nfOrigen) : ''));
 
     document.getElementById('d-ent').textContent    = d.ent_periodo;
     document.getElementById('d-sal').textContent    = d.sal_periodo;
@@ -851,7 +861,7 @@ async function renderDashboard() {
             '<div style="font-size:11px;color:var(--text3);margin-top:4px">entradas</div>' +
           '</div>'
         ).join('')
-      : '<div style="font-size:13px;color:var(--text2);padding:8px 0">Nadie superó 3 entradas en este periodo.</div>';
+      : '<div style="font-size:13px;color:var(--text2);padding:8px 0">Nadie superó el umbral en este periodo.</div>';
 
   } catch(e) {
     toast('Error al cargar el dashboard.');
