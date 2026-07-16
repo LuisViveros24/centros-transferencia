@@ -88,3 +88,27 @@ class TestDashboardNuevosParametros:
         with patch('app.get_db', return_value=fake_db()):
             r = client.get('/api/dashboard?desde=2026-04-11&hasta=2026-04-11', headers=AUTH)
         assert r.status_code == 200
+
+
+class TestNombresFrecuentes:
+    def test_dashboard_incluye_nombres_frecuentes(self, client):
+        """La respuesta del dashboard incluye la lista nombres_frecuentes."""
+        with patch('app.get_db', return_value=fake_db()):
+            r = client.get('/api/dashboard?desde=2026-07-01&hasta=2026-07-31', headers=AUTH)
+        assert r.status_code == 200
+        data = r.get_json()
+        assert 'nombres_frecuentes' in data, "Falta la clave nombres_frecuentes"
+        assert isinstance(data['nombres_frecuentes'], list)
+
+    def test_dashboard_nombres_frecuentes_sql_semantica(self, client):
+        """La consulta agrupa por nombre normalizado, filtra ENTRADA y umbral > 3."""
+        conn = fake_db()
+        cur = conn.cursor.return_value
+        with patch('app.get_db', return_value=conn):
+            client.get('/api/dashboard?desde=2026-07-01&hasta=2026-07-31', headers=AUTH)
+        sqls = [c.args[0] for c in cur.execute.call_args_list]
+        nf = [s for s in sqls if 'HAVING COUNT(*) > 3' in s]
+        assert nf, "No se ejecutó la consulta de nombres frecuentes (HAVING COUNT(*) > 3)"
+        sql = nf[0]
+        assert "tipo='ENTRADA'" in sql, "La consulta debe filtrar solo ENTRADA"
+        assert 'LOWER(TRIM(nombre))' in sql, "Debe agrupar por nombre normalizado"

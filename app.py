@@ -286,6 +286,18 @@ def dashboard():
                     WHERE fecha BETWEEN %s AND %s
                     GROUP BY fecha ORDER BY fecha
                 """, [desde, hasta])
+
+                nombres_frecuentes = qa("""
+                    SELECT
+                        (ARRAY_AGG(nombre ORDER BY id DESC))[1] AS nombre,
+                        COUNT(*) AS c
+                    FROM registros
+                    WHERE tipo='ENTRADA' AND fecha BETWEEN %s AND %s
+                      AND nombre IS NOT NULL AND TRIM(nombre) != ''
+                    GROUP BY LOWER(TRIM(nombre))
+                    HAVING COUNT(*) > 3
+                    ORDER BY c DESC
+                """, [desde, hasta])
     finally:
         conn.close()
 
@@ -296,6 +308,7 @@ def dashboard():
         'm3_ent_tot': round(float(m3_et), 2), 'm3_sal_tot': round(float(m3_st), 2),
         'pga_flow': pga_flow,
         'origen_counts': origen_counts,
+        'nombres_frecuentes': [{'nombre': r['nombre'], 'count': r['c']} for r in nombres_frecuentes],
         'historial': [dict(r) for r in hist]
     })
 
