@@ -394,6 +394,11 @@
         <div id="origen-counts" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:4px"></div>
       </div>
 
+      <div class="card">
+        <div class="card-label">Personas frecuentes (más de 3 entradas en el periodo)</div>
+        <div id="nombres-frecuentes" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:4px"></div>
+      </div>
+
       <div class="btn-row" style="justify-content:flex-start;gap:10px">
         <button class="btn btn-ghost" onclick="window.print()">Imprimir reporte</button>
         <button class="btn btn-ghost" onclick="exportarExcel()">Exportar Excel</button>
@@ -818,6 +823,17 @@ async function renderDashboard() {
             '</div>';
         }).join('')
       : '<div style="font-size:13px;color:var(--text2);padding:8px 0">Sin registros de entradas aún.</div>';
+
+    // Personas frecuentes (nombre)
+    document.getElementById('nombres-frecuentes').innerHTML = d.nombres_frecuentes.length
+      ? d.nombres_frecuentes.map(n =>
+          '<div style="background:var(--bg2);border-radius:var(--radius);padding:12px 14px;">' +
+            '<div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">' + n.nombre + '</div>' +
+            '<div style="font-size:24px;font-weight:700;color:var(--text);line-height:1">' + n.count + '</div>' +
+            '<div style="font-size:11px;color:var(--text3);margin-top:4px">entradas</div>' +
+          '</div>'
+        ).join('')
+      : '<div style="font-size:13px;color:var(--text2);padding:8px 0">Nadie superó 3 entradas en este periodo.</div>';
 
   } catch(e) {
     toast('Error al cargar el dashboard.');
