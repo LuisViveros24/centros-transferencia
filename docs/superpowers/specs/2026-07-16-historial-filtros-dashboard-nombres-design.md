@@ -24,6 +24,8 @@ Elegido durante el brainstorming (con compañero visual): estilo de filtro **fil
 
 Una segunda fila `<tr>` dentro de `<thead>` (`templates/index.html`, tabla `#h-tbl`), inmediatamente debajo de la fila de encabezados actual (línea ~424-441), siempre visible — no es un panel que se abre/cierra.
 
+**Consecuencia directa para 2.6:** "siempre visible" significa que la tabla completa (con su `<thead>` y la fila de filtros) debe permanecer en pantalla incluso cuando el filtro activo no encuentra ninguna coincidencia — de lo contrario el usuario no podría ver ni ajustar los filtros que él mismo puso, justo cuando más los necesita. Ver 2.6 para el cambio que esto implica en el manejo del estado vacío.
+
 ### 2.2 Controles por columna
 
 | Columna | Control | Comportamiento |
@@ -86,11 +88,16 @@ Botón nuevo junto a "Exportar Excel" en `.table-actions` (línea ~407-410): `li
 
 `#h-count` (el pill "N registros") pasa a reflejar siempre el **conjunto filtrado/visible**, no el total cargado — se actualiza dentro de `aplicarFiltrosHistorial()` en cada re-render, usando `filtered.length` en vez de `rows.length`.
 
-Cuando el filtrado da 0 resultados, `#h-empty` debe distinguir dos casos, porque son mensajes distintos para el usuario:
-- **Sin filtros activos y 0 registros en total** (base de datos vacía): se mantiene el mensaje actual, "No hay registros aún."
-- **Con algún filtro activo y 0 coincidencias**: nuevo mensaje, "Ningún registro coincide con los filtros." — para no dar a entender que no hay datos cuando en realidad el filtro simplemente no encontró nada.
+**Cambio respecto al comportamiento actual:** hoy, cuando `rows.length === 0`, `renderHistorial()` oculta la tabla completa (`tbl.style.display='none'`) y muestra un `<div id="h-empty">` aparte. Eso ya no sirve porque ocultaría también la fila de filtros (contradice 2.1 — "siempre visible"). El nuevo comportamiento:
 
-`aplicarFiltrosHistorial()` decide cuál mostrar comparando `_historialRows.length` (total real) contra si hay algún filtro con valor en `_historialFiltros`.
+- La tabla (`<thead>`, incluida la fila de filtros) **siempre se muestra** — se elimina el toggle `tbl.style.display='none'`.
+- Cuando `filtered.length === 0`, en vez de vaciar `#h-body`, se le pone una sola fila con un mensaje, usando `colspan` para ocupar todas las columnas: `<tr><td colspan="15" style="text-align:center;color:var(--text2);padding:20px">...</td></tr>`.
+- El mensaje dentro de esa fila distingue dos casos:
+  - **Sin ningún filtro activo y `_historialRows.length === 0`** (base de datos genuinamente vacía): "No hay registros aún."
+  - **Con algún filtro activo (o incluso sin filtros, pero `_historialRows.length > 0` y aun así 0 coincidencias — no debería pasar sin filtros, pero cubre el caso por seguridad) y 0 coincidencias**: "Ningún registro coincide con los filtros."
+- El `<div id="h-empty">` separado ya no se usa y se elimina del HTML — su función la cumple ahora la fila dentro de `#h-body`.
+
+`aplicarFiltrosHistorial()` decide cuál mensaje mostrar comparando `_historialRows.length` (total real) contra si hay algún filtro con valor en `_historialFiltros`.
 
 ### 2.7 Fuera de alcance
 
@@ -182,6 +189,7 @@ En `renderDashboard()` (`templates/index.html:699`), justo después del bloque q
 - [ ] El botón "Limpiar filtros" vacía los 10 campos con filtro de un clic
 - [ ] El pill de conteo ("N registros") refleja el conjunto filtrado, no el total cargado
 - [ ] Si un filtro no encuentra nada, el mensaje dice "Ningún registro coincide con los filtros." (no "No hay registros aún.")
+- [ ] La fila de filtros sigue visible incluso cuando el filtro activo no encuentra ninguna coincidencia (nunca se oculta la tabla completa)
 - [ ] La columna Fecha se muestra en formato `DD/MM/YYYY` en vez del string HTTP crudo
 - [ ] La exportación a Excel sigue exportando todos los registros, sin importar los filtros activos en pantalla
 
