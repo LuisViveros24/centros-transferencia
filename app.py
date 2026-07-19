@@ -223,6 +223,7 @@ def dashboard():
     desde = request.args.get('desde', _today)
     hasta  = request.args.get('hasta',  _today)
     origen_filtro = request.args.get('origen', '').strip()
+    pga_filtro = request.args.get('pga', '').strip()
     # Validate date format; fall back to today on bad input
     for _s in (desde, hasta):
         try:
@@ -311,17 +312,20 @@ def dashboard():
                 # El umbral es un entero de nuestro propio código (1 o 3), no entrada
                 # del usuario; el origen sí va como parámetro para evitar inyección.
                 _nf_params = [desde, hasta]
-                _nf_origen_clause = ''
+                _nf_clauses = ''
                 _nf_umbral = 3
                 if origen_filtro:
-                    _nf_origen_clause = ' AND origen = %s'
+                    _nf_clauses += ' AND origen = %s'
                     _nf_params.append(origen_filtro)
                     _nf_umbral = 1
+                if pga_filtro:
+                    _nf_clauses += ' AND pga = %s'
+                    _nf_params.append(pga_filtro)
                 nombres_frecuentes = qa(
                     "SELECT (ARRAY_AGG(nombre ORDER BY id DESC))[1] AS nombre, COUNT(*) AS c "
                     "FROM registros "
                     "WHERE tipo='ENTRADA' AND fecha BETWEEN %s AND %s"
-                    + _nf_origen_clause +
+                    + _nf_clauses +
                     " AND nombre IS NOT NULL AND TRIM(nombre) != '' "
                     "GROUP BY LOWER(TRIM(nombre)) "
                     "HAVING COUNT(*) > " + str(_nf_umbral) + " "

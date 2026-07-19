@@ -398,11 +398,16 @@
       <div class="card">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
           <div class="card-label" style="margin:0">Personas frecuentes</div>
-          <select id="nf-origen" style="font-size:12px;padding:4px 8px;width:auto" onchange="renderDashboard()">
-            <option value="">Todos (más de 3)</option>
-            <option>NEGOCIO</option><option>RECOLECTORES</option><option>CASA-HABITACIÓN</option>
-            <option>CEA</option><option>LA OLA</option><option>CONTRATISTAS</option>
-          </select>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <select id="nf-pga" style="font-size:12px;padding:4px 8px;width:auto" onchange="renderDashboard()">
+              <option value="">Todos los PGA</option>
+            </select>
+            <select id="nf-origen" style="font-size:12px;padding:4px 8px;width:auto" onchange="renderDashboard()">
+              <option value="">Todos (más de 3)</option>
+              <option>NEGOCIO</option><option>RECOLECTORES</option><option>CASA-HABITACIÓN</option>
+              <option>CEA</option><option>LA OLA</option><option>CONTRATISTAS</option>
+            </select>
+          </div>
         </div>
         <div id="nombres-frecuentes" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:10px"></div>
       </div>
@@ -742,8 +747,11 @@ async function renderDashboard() {
     if (desde > hasta) { toast('La fecha "Desde" debe ser anterior o igual a "Hasta".'); return; }
     const nfOrigenEl = document.getElementById('nf-origen');
     const nfOrigen = nfOrigenEl ? nfOrigenEl.value : '';
+    const nfPgaEl = document.getElementById('nf-pga');
+    const nfPga = nfPgaEl ? nfPgaEl.value : '';
     const d = await api('/api/dashboard?desde=' + desde + '&hasta=' + hasta +
-      (nfOrigen ? '&origen=' + encodeURIComponent(nfOrigen) : ''));
+      (nfOrigen ? '&origen=' + encodeURIComponent(nfOrigen) : '') +
+      (nfPga ? '&pga=' + encodeURIComponent(nfPga) : ''));
 
     document.getElementById('d-ent').textContent    = d.ent_periodo;
     document.getElementById('d-sal').textContent    = d.sal_periodo;
@@ -1101,6 +1109,8 @@ autoNow('s-fecha','s-hora');
 updateNavBadges();
 _initPlacaHint();
 _initFiltrosHistorial();
+document.getElementById('nf-pga').innerHTML =
+  '<option value="">Todos los PGA</option>' + PGAS.map(p => '<option>' + p + '</option>').join('');
 
 document.getElementById('topbar-date').textContent =
   new Date().toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
