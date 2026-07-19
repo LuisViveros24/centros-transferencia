@@ -299,6 +299,8 @@ def _colonias_para_mapa(rows):
     conteo) de cada una. Devuelve la lista ordenada por conteo desc."""
     por_colonia = {}
     for r in rows:
+        if r['lat'] is None or r['lng'] is None:
+            continue  # defensivo: fila sin coordenadas no debe tumbar el endpoint
         d = por_colonia.setdefault(r['norm'], {
             'colonia': r['colonia'], 'lat': float(r['lat']), 'lng': float(r['lng']),
             'total': 0, '_origenes': {}})

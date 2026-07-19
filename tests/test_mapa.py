@@ -105,3 +105,11 @@ class TestColoniasParaMapa:
 
     def test_vacio(self):
         assert app_module._colonias_para_mapa([]) == []
+
+    def test_ignora_filas_sin_coordenadas(self):
+        rows = [
+            {'norm': 'a', 'colonia': 'A', 'lat': None, 'lng': None, 'origen': 'NEGOCIO', 'c': 5},
+            {'norm': 'b', 'colonia': 'B', 'lat': 25.5, 'lng': -103.4, 'origen': 'NEGOCIO', 'c': 2},
+        ]
+        out = app_module._colonias_para_mapa(rows)
+        assert [c['colonia'] for c in out] == ['B']

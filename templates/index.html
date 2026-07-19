@@ -956,6 +956,8 @@ const ORIGEN_COLORES = {
   'CEA':'#8e44ad', 'LA OLA':'#e67e22', 'CONTRATISTAS':'#16a085'
 };
 function colorOrigen(o){ return ORIGEN_COLORES[o] || '#7f8c8d'; }
+function escHtml(s){ return String(s == null ? '' : s).replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 let _map = null, _mapLayer = null;
 async function renderMapa() {
@@ -986,8 +988,8 @@ async function renderMapa() {
       radius: Math.min(7 + c.count, 26),
       color: colorOrigen(c.origen), fillColor: colorOrigen(c.origen),
       fillOpacity: 0.65, weight: 1
-    }).bindPopup('<b>' + c.colonia + '</b><br>' + c.count +
-      ' entrada(s)<br>Origen dominante: ' + c.origen).addTo(_mapLayer);
+    }).bindPopup('<b>' + escHtml(c.colonia) + '</b><br>' + c.count +
+      ' entrada(s)<br>Origen dominante: ' + escHtml(c.origen)).addTo(_mapLayer);
   });
 
   if (cols.length) {
@@ -996,7 +998,7 @@ async function renderMapa() {
   document.getElementById('mapa-leyenda').innerHTML = [...origenesUsados].map(o =>
     '<span style="display:inline-flex;align-items:center;gap:5px">' +
     '<span style="width:12px;height:12px;border-radius:50%;background:' + colorOrigen(o) +
-    ';display:inline-block"></span>' + o + '</span>').join('');
+    ';display:inline-block"></span>' + escHtml(o) + '</span>').join('');
   const vac = document.getElementById('mapa-vacio');
   vac.style.display = cols.length ? 'none' : 'block';
   vac.textContent = 'Sin colonias ubicadas para este periodo (¿ya se corrió geocode_colonias.py?).';

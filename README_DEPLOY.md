@@ -95,6 +95,33 @@ Insertando contador de folio inicial...
 
 ---
 
+## Paso 6.5 — Roles y mapa de colonias (opcional)
+
+**Roles admin / captura.** Por defecto el usuario `AUTH_USER` tiene acceso total.
+Para separar en dos roles (captura = solo Entrada/Salida; admin = todo), en Render →
+servicio **ct-app** → **Environment** → **Add Environment Variable**, agregar:
+
+| Key | Value |
+|-----|-------|
+| `ADMIN_USER` | (el usuario admin que elijas) |
+| `ADMIN_PASS` | (su contraseña) |
+
+Con esas variables, `AUTH_USER` queda restringido a captura y `ADMIN_USER` ve
+Dashboard, Historial, exportación y eliminación. Sin ellas, todo sigue como antes.
+
+**Mapa de colonias.** El mapa del Dashboard necesita geocodificar las colonias una
+vez. Desde tu terminal (tarda ~15 min, es reanudable — puedes repetirlo cuando haya
+colonias nuevas):
+
+```bash
+DATABASE_URL="<pegar aquí la External Database URL>" python geocode_colonias.py
+```
+
+Hasta correrlo, el mapa muestra un mensaje de "sin colonias ubicadas". La tabla
+`colonias_geo` que usa ya la crea `migrate_data.py` en el Paso 5.
+
+---
+
 ## Paso 7 — Compartir la URL con los supervisores
 
 1. En la página del servicio `ct-app` en Render, copiar la URL pública
