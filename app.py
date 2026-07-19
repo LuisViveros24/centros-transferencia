@@ -1,7 +1,7 @@
-from flask import Flask, request, jsonify, render_template, send_file, Response
+from flask import Flask, request, jsonify, render_template, send_file, Response, g
 import psycopg2
 import psycopg2.extras
-import os, io, re
+import os, io, re, hmac
 from datetime import datetime, date
 from functools import wraps
 
@@ -11,6 +11,11 @@ app = Flask(__name__)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 AUTH_USER    = os.environ.get('AUTH_USER')
 AUTH_PASS    = os.environ.get('AUTH_PASS')
+# Opcionales: si están configuradas, AUTH_USER queda restringido a captura
+# y ADMIN_USER tiene acceso total. Si no, AUTH_USER conserva acceso total
+# (migración segura: el deploy no rompe nada antes de configurarlas en Render).
+ADMIN_USER   = os.environ.get('ADMIN_USER')
+ADMIN_PASS   = os.environ.get('ADMIN_PASS')
 
 if not DATABASE_URL:
     raise RuntimeError('Falta la variable de entorno DATABASE_URL')
@@ -60,17 +65,50 @@ def init_db():
     finally:
         conn.close()
 
-# ── Autenticación ──────────────────────────────────────────────
+# ── Autenticación y roles ──────────────────────────────────────
+def _cred_ok(auth, exp_user, exp_pass):
+    if not exp_user or not exp_pass or not auth or auth.username is None or auth.password is None:
+        return False
+    return hmac.compare_digest(auth.username, exp_user) and \
+           hmac.compare_digest(auth.password, exp_pass)
+
+def _rol_de(auth):
+    """'admin', 'captura' o None según las credenciales recibidas."""
+    if _cred_ok(auth, ADMIN_USER, ADMIN_PASS):
+        return 'admin'
+    if _cred_ok(auth, AUTH_USER, AUTH_PASS):
+        # Sin admin configurado, el usuario de captura conserva acceso total
+        return 'captura' if (ADMIN_USER and ADMIN_PASS) else 'admin'
+    return None
+
+def _respuesta_401():
+    return Response(
+        'Acceso restringido',
+        401,
+        {'WWW-Authenticate': 'Basic realm="CT App"'}
+    )
+
 def requiere_auth(f):
+    """Cualquier usuario válido (captura o admin)."""
     @wraps(f)
     def decorado(*args, **kwargs):
-        auth = request.authorization
-        if not auth or auth.username != AUTH_USER or auth.password != AUTH_PASS:
-            return Response(
-                'Acceso restringido',
-                401,
-                {'WWW-Authenticate': 'Basic realm="CT App"'}
-            )
+        rol = _rol_de(request.authorization)
+        if rol is None:
+            return _respuesta_401()
+        g.rol = rol
+        return f(*args, **kwargs)
+    return decorado
+
+def requiere_admin(f):
+    """Solo el usuario administrador."""
+    @wraps(f)
+    def decorado(*args, **kwargs):
+        rol = _rol_de(request.authorization)
+        if rol is None:
+            return _respuesta_401()
+        if rol != 'admin':
+            return jsonify({'error': 'Se requiere usuario administrador'}), 403
+        g.rol = rol
         return f(*args, **kwargs)
     return decorado
 
@@ -98,8 +136,38 @@ def next_folio(tipo, cur):
 def index():
     return render_template('index.html')
 
-@app.route('/api/registros', methods=['GET'])
+@app.route('/api/whoami', methods=['GET'])
 @requiere_auth
+def whoami():
+    """Rol del usuario autenticado; el frontend adapta la navegación."""
+    return jsonify({'rol': g.rol})
+
+@app.route('/api/badges', methods=['GET'])
+@requiere_auth
+def badges():
+    """Conteo de entradas/salidas de una fecha, para los badges del menú.
+    Accesible a captura (a diferencia de GET /api/registros, que es admin)."""
+    fecha = request.args.get('fecha', str(date.today()))
+    try:
+        datetime.strptime(fecha, '%Y-%m-%d')
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Formato de fecha inválido. Use YYYY-MM-DD'}), 400
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT COUNT(*) c FROM registros WHERE fecha=%s AND tipo='ENTRADA'", [fecha])
+                ent = cur.fetchone()['c']
+                cur.execute(
+                    "SELECT COUNT(*) c FROM registros WHERE fecha=%s AND tipo='SALIDA'", [fecha])
+                sal = cur.fetchone()['c']
+    finally:
+        conn.close()
+    return jsonify({'ent': ent, 'sal': sal})
+
+@app.route('/api/registros', methods=['GET'])
+@requiere_admin
 def get_registros():
     fecha = request.args.get('fecha')
     tipo  = request.args.get('tipo')
@@ -195,7 +263,7 @@ def buscar_placa():
     return jsonify(dict(row) if row else None)
 
 @app.route('/api/registros/<int:rid>', methods=['DELETE'])
-@requiere_auth
+@requiere_admin
 def eliminar_registro(rid):
     conn = get_db()
     try:
@@ -217,7 +285,7 @@ def eliminar_registro(rid):
     return jsonify({'ok': True})
 
 @app.route('/api/dashboard', methods=['GET'])
-@requiere_auth
+@requiere_admin
 def dashboard():
     _today = str(date.today())
     desde = request.args.get('desde', _today)
@@ -346,7 +414,7 @@ def dashboard():
     })
 
 @app.route('/api/export/excel', methods=['GET'])
-@requiere_auth
+@requiere_admin
 def export_excel():
     try:
         import openpyxl

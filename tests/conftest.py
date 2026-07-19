@@ -5,3 +5,5 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 os.environ['DATABASE_URL'] = 'postgresql://fake:fake@localhost/fake'
 os.environ['AUTH_USER'] = 'usuario_test'
 os.environ['AUTH_PASS'] = 'clave_test'
+os.environ['ADMIN_USER'] = 'admin_test'
+os.environ['ADMIN_PASS'] = 'clave_admin'

@@ -549,6 +549,8 @@ function closeSidebar() {
 }
 
 function goTo(page, btn) {
+  // El rol captura no navega a las vistas de análisis (el backend las protege igual)
+  if (ROL !== 'admin' && (page === 'dashboard' || page === 'historial')) return;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
@@ -761,16 +763,29 @@ async function registrarSalida() {
 }
 
 // ── Nav badges ─────────────────────────────────────────────────
+// Usa /api/badges (accesible al rol captura) en vez de /api/registros
+// (que desde la feature de roles es solo-admin).
 async function updateNavBadges() {
   try {
-    const hoy = todayStr();
-    const [ent, sal] = await Promise.all([
-      api('/api/registros?fecha=' + hoy + '&tipo=ENTRADA'),
-      api('/api/registros?fecha=' + hoy + '&tipo=SALIDA')
-    ]);
-    document.getElementById('nav-badge-in').textContent  = ent.length;
-    document.getElementById('nav-badge-out').textContent = sal.length;
+    const b = await api('/api/badges?fecha=' + todayStr());
+    document.getElementById('nav-badge-in').textContent  = b.ent;
+    document.getElementById('nav-badge-out').textContent = b.sal;
   } catch(e) {}
+}
+
+// ── Rol del usuario ────────────────────────────────────────────
+let ROL = 'admin';
+async function initRol() {
+  try {
+    ROL = (await api('/api/whoami')).rol;
+  } catch(e) { return; }  // si falla, no ocultamos nada; el backend protege igual
+  if (ROL !== 'admin') {
+    document.querySelectorAll('.sidebar-section')[1].style.display = 'none';
+    const navDash = document.querySelector('button[onclick*="dashboard"]');
+    const navHist = document.querySelector('button[onclick*="historial"]');
+    if (navDash) navDash.style.display = 'none';
+    if (navHist) navHist.style.display = 'none';
+  }
 }
 
 // ── Dashboard ──────────────────────────────────────────────────
@@ -1148,6 +1163,7 @@ buildPga('pga-sel-s');
 autoNow('e-fecha','e-hora');
 autoNow('s-fecha','s-hora');
 updateNavBadges();
+initRol();
 _initPlacaHint();
 _initFiltrosHistorial();
 document.getElementById('nf-pga').innerHTML =

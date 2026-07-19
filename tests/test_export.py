@@ -7,7 +7,8 @@ from unittest.mock import patch, MagicMock
 import app as app_module
 import openpyxl
 
-AUTH = {'Authorization': 'Basic ' + base64.b64encode(b'usuario_test:clave_test').decode()}
+# Dashboard/export son de solo-admin desde la feature de roles (2026-07)
+AUTH = {'Authorization': 'Basic ' + base64.b64encode(b'admin_test:clave_admin').decode()}
 
 
 def fake_db(fetchall_value):
