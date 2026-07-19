@@ -429,6 +429,23 @@
         </div>
       </div>
 
+      <!-- Barra de periodo (filtra en cliente, igual que los filtros de columna) -->
+      <div class="card" style="margin-bottom:10px;padding:10px 14px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.05em">Periodo:</span>
+          <button class="btn btn-ghost" style="padding:5px 12px;border-radius:20px;font-size:12px" onclick="setPeriodoHistorial('todo')">Todo</button>
+          <button class="btn btn-ghost" style="padding:5px 12px;border-radius:20px;font-size:12px" onclick="setPeriodoHistorial('hoy')">Hoy</button>
+          <button class="btn btn-ghost" style="padding:5px 12px;border-radius:20px;font-size:12px" onclick="setPeriodoHistorial('semana')">Esta semana</button>
+          <button class="btn btn-ghost" style="padding:5px 12px;border-radius:20px;font-size:12px" onclick="setPeriodoHistorial('mes')">Este mes</button>
+          <div style="display:flex;align-items:center;gap:6px;margin-left:4px">
+            <span style="font-size:12px;color:var(--text2)">Desde</span>
+            <input type="date" id="h-desde" class="filtro-input" data-filtro="fdesde" style="width:auto"/>
+            <span style="font-size:12px;color:var(--text2)">Hasta</span>
+            <input type="date" id="h-hasta" class="filtro-input" data-filtro="fhasta" style="width:auto"/>
+          </div>
+        </div>
+      </div>
+
       <!-- Barra de acción (oculta hasta seleccionar) -->
       <div id="h-action-bar" style="display:none; align-items:center; gap:12px;
            background:var(--red-bg); border:1px solid var(--red); border-radius:var(--radius);
@@ -453,6 +470,7 @@
               <th style="width:140px">Nombre</th>
               <th style="width:110px">Calle</th>
               <th style="width:110px">Colonia</th>
+              <th style="width:130px">Vehículo</th>
               <th style="width:100px">Placa</th>
               <th style="width:65px">m³</th>
               <th>Observaciones</th>
@@ -470,6 +488,7 @@
               <th><input type="text" class="filtro-input" data-filtro="nombre" placeholder="Filtrar"/></th>
               <th><input type="text" class="filtro-input" data-filtro="calle" placeholder="Filtrar"/></th>
               <th><input type="text" class="filtro-input" data-filtro="colonia" placeholder="Filtrar"/></th>
+              <th><select class="filtro-input" data-filtro="vehiculo"><option value="">Todos</option><option>CARROMATO</option><option>MOTOCARRO</option><option>VEHÍCULO PARTICULAR</option><option>VEHÍCULO PÚBLICO</option><option>OTRO</option><option>CONTRATISTAS</option><option>VOLTEO</option></select></th>
               <th><input type="text" class="filtro-input" data-filtro="placa" placeholder="Filtrar"/></th>
               <th></th>
               <th><input type="text" class="filtro-input" data-filtro="obs" placeholder="Filtrar"/></th>
@@ -581,32 +600,47 @@ function parseDateLocal(str) {
 }
 
 // Rellena los inputs d-desde / d-hasta y llama renderDashboard()
-function setRapido(tipo) {
+// Rango de fechas para los botones rápidos (hoy/semana/mes), en hora local.
+// Devuelve null si el tipo es desconocido.
+function rangoRapido(tipo) {
   const hoy = new Date();
-  let desde, hasta;
 
   if (tipo === 'hoy') {
-    desde = hasta = todayStr();
-
-  } else if (tipo === 'semana') {
+    return { desde: todayStr(), hasta: todayStr() };
+  }
+  if (tipo === 'semana') {
     const lunes = new Date(hoy);
     lunes.setDate(hoy.getDate() - ((hoy.getDay() + 6) % 7));
     const domingo = new Date(lunes);
     domingo.setDate(lunes.getDate() + 6);
-    desde = dateToLocalStr(lunes);
-    hasta  = dateToLocalStr(domingo);
-
-  } else if (tipo === 'mes') {
-    desde = hoy.getFullYear() + '-' +
-            String(hoy.getMonth() + 1).padStart(2, '0') + '-01';
-    const ultimo = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
-    hasta = dateToLocalStr(ultimo);
+    return { desde: dateToLocalStr(lunes), hasta: dateToLocalStr(domingo) };
   }
+  if (tipo === 'mes') {
+    const desde = hoy.getFullYear() + '-' +
+                  String(hoy.getMonth() + 1).padStart(2, '0') + '-01';
+    const ultimo = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+    return { desde, hasta: dateToLocalStr(ultimo) };
+  }
+  return null;
+}
 
-  if (!desde || !hasta) return;  // tipo desconocido — no hacer nada
-  document.getElementById('d-desde').value = desde;
-  document.getElementById('d-hasta').value  = hasta;
+function setRapido(tipo) {
+  const r = rangoRapido(tipo);
+  if (!r) return;  // tipo desconocido — no hacer nada
+  document.getElementById('d-desde').value = r.desde;
+  document.getElementById('d-hasta').value  = r.hasta;
   renderDashboard();
+}
+
+// Botones rápidos del periodo en Historial ('todo' limpia el rango)
+function setPeriodoHistorial(tipo) {
+  const r = tipo === 'todo' ? { desde: '', hasta: '' } : rangoRapido(tipo);
+  if (!r) return;
+  document.getElementById('h-desde').value = r.desde;
+  document.getElementById('h-hasta').value = r.hasta;
+  _historialFiltros.fdesde = r.desde;
+  _historialFiltros.fhasta = r.hasta;
+  aplicarFiltrosHistorial();
 }
 function nowTime() {
   const d = new Date();
@@ -902,7 +936,7 @@ function fechaDisplay(rawFecha) {
 
 // ── Historial: estado de filtros ───────────────────────────────
 let _historialRows = [];
-let _historialFiltros = { folio:'', tipo:'', fecha:'', pga:'', origen:'', nombre:'', calle:'', colonia:'', placa:'', obs:'' };
+let _historialFiltros = { folio:'', tipo:'', fecha:'', pga:'', origen:'', nombre:'', calle:'', colonia:'', vehiculo:'', placa:'', obs:'', fdesde:'', fhasta:'' };
 
 function matchesFiltroHistorial(r) {
   const f = _historialFiltros;
@@ -911,11 +945,17 @@ function matchesFiltroHistorial(r) {
   if (!contiene(r.folio,   f.folio))   return false;
   if (!igual(r.tipo,       f.tipo))    return false;
   if (f.fecha && fechaToYMD(r.fecha) !== f.fecha) return false;
+  if (f.fdesde || f.fhasta) {
+    const ymd = fechaToYMD(r.fecha);
+    if (f.fdesde && ymd < f.fdesde) return false;
+    if (f.fhasta && ymd > f.fhasta) return false;
+  }
   if (!igual(r.pga,        f.pga))     return false;
   if (!igual(r.origen,     f.origen))  return false;
   if (!contiene(r.nombre,  f.nombre))  return false;
   if (!contiene(r.calle,   f.calle))   return false;
   if (!contiene(r.colonia, f.colonia)) return false;
+  if (!igual(r.vehiculo,   f.vehiculo)) return false;
   if (!contiene(r.placa,   f.placa))   return false;
   if (!contiene(r.obs,     f.obs))     return false;
   return true;
@@ -935,6 +975,7 @@ function filaHistorial(r) {
     '<td>' + (r.nombre||'—') + '</td>' +
     '<td>' + (r.calle||'—') + '</td>' +
     '<td>' + (r.colonia||'—') + '</td>' +
+    '<td>' + (r.vehiculo||'—') + '</td>' +
     '<td>' + (r.placa||'—') + '</td>' +
     '<td>' + (r.m3 ? parseFloat(r.m3).toFixed(2) : '—') + '</td>' +
     '<td style="max-width:200px;color:var(--text2)">' + (r.obs||'—') + '</td>' +
@@ -951,7 +992,7 @@ function aplicarFiltrosHistorial() {
     const msg = (!hayFiltro && _historialRows.length === 0)
       ? 'No hay registros aún.'
       : 'Ningún registro coincide con los filtros.';
-    body.innerHTML = '<tr><td colspan="15" style="text-align:center;color:var(--text2);padding:20px">' + msg + '</td></tr>';
+    body.innerHTML = '<tr><td colspan="16" style="text-align:center;color:var(--text2);padding:20px">' + msg + '</td></tr>';
   } else {
     body.innerHTML = filtered.map(filaHistorial).join('');
   }
