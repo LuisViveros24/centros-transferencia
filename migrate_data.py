@@ -59,6 +59,16 @@ try:
                     valor TEXT
                 )
             ''')
+            print('Creando tabla colonias_geo (caché de geocodificación)...')
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS colonias_geo (
+                    colonia_norm TEXT PRIMARY KEY,
+                    lat          REAL,
+                    lng          REAL,
+                    estado       TEXT NOT NULL,
+                    creado_en    TIMESTAMP DEFAULT NOW()
+                )
+            ''')
             print('Insertando contador de folio inicial...')
             cur.execute(
                 "INSERT INTO config VALUES ('folio_base', '1') ON CONFLICT DO NOTHING"

@@ -59,6 +59,15 @@ def init_db():
                         valor TEXT
                     )
                 ''')
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS colonias_geo (
+                        colonia_norm TEXT PRIMARY KEY,
+                        lat          REAL,
+                        lng          REAL,
+                        estado       TEXT NOT NULL,
+                        creado_en    TIMESTAMP DEFAULT NOW()
+                    )
+                ''')
                 cur.execute(
                     "INSERT INTO config VALUES ('folio_base','1') ON CONFLICT DO NOTHING"
                 )
@@ -283,6 +292,71 @@ def eliminar_registro(rid):
     finally:
         conn.close()
     return jsonify({'ok': True})
+
+def _colonias_para_mapa(rows):
+    """Agrupa filas (norm, colonia, lat, lng, origen, c) por colonia:
+    calcula el total de entradas y el origen dominante (el de mayor
+    conteo) de cada una. Devuelve la lista ordenada por conteo desc."""
+    por_colonia = {}
+    for r in rows:
+        d = por_colonia.setdefault(r['norm'], {
+            'colonia': r['colonia'], 'lat': float(r['lat']), 'lng': float(r['lng']),
+            'total': 0, '_origenes': {}})
+        c = int(r['c'])
+        d['total'] += c
+        o = r['origen'] or '—'
+        d['_origenes'][o] = d['_origenes'].get(o, 0) + c
+    salida = []
+    for d in por_colonia.values():
+        origen_dom = max(d['_origenes'].items(), key=lambda kv: kv[1])[0] if d['_origenes'] else '—'
+        salida.append({'colonia': d['colonia'], 'lat': d['lat'], 'lng': d['lng'],
+                       'origen': origen_dom, 'count': d['total']})
+    salida.sort(key=lambda x: -x['count'])
+    return salida
+
+@app.route('/api/mapa', methods=['GET'])
+@requiere_admin
+def mapa_colonias():
+    """Colonias de origen de las ENTRADAS del periodo con coordenadas
+    (desde el caché colonias_geo), con su origen dominante. Solo aparecen
+    las colonias que geocode_colonias.py pudo ubicar (estado='ok')."""
+    _today = str(date.today())
+    desde = request.args.get('desde', _today)
+    hasta = request.args.get('hasta', _today)
+    for _s in (desde, hasta):
+        try:
+            datetime.strptime(_s, '%Y-%m-%d')
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Formato de fecha inválido. Use YYYY-MM-DD'}), 400
+    if desde > hasta:
+        return jsonify({'error': 'desde debe ser anterior o igual a hasta'}), 400
+    pga_filtro = request.args.get('pga', '').strip()
+
+    params = [desde, hasta]
+    pga_clause = ''
+    if pga_filtro:
+        pga_clause = ' AND r.pga = %s'
+        params.append(pga_filtro)
+
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT LOWER(TRIM(r.colonia)) AS norm, MAX(TRIM(r.colonia)) AS colonia, "
+                    "r.origen AS origen, COUNT(*) AS c, cg.lat AS lat, cg.lng AS lng "
+                    "FROM registros r "
+                    "JOIN colonias_geo cg ON cg.colonia_norm = LOWER(TRIM(r.colonia)) "
+                    "WHERE r.tipo='ENTRADA' AND cg.estado='ok' "
+                    "AND r.fecha BETWEEN %s AND %s "
+                    "AND r.colonia IS NOT NULL AND TRIM(r.colonia) != ''"
+                    + pga_clause +
+                    " GROUP BY LOWER(TRIM(r.colonia)), r.origen, cg.lat, cg.lng",
+                    params)
+                rows = cur.fetchall()
+    finally:
+        conn.close()
+    return jsonify({'colonias': _colonias_para_mapa(rows)})
 
 @app.route('/api/dashboard', methods=['GET'])
 @requiere_admin

@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Centros de Transferencia — Control de Viajes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <style>
   :root {
     --bg:#ffffff; --bg2:#f5f5f3; --bg3:#efefec;
@@ -410,6 +412,18 @@
           </div>
         </div>
         <div id="nombres-frecuentes" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:10px"></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+          <div class="card-label" style="margin:0">Mapa de colonias (entradas del periodo)</div>
+          <select id="mapa-pga" style="font-size:12px;padding:4px 8px;width:auto" onchange="renderMapa()">
+            <option value="">Todos los PGA</option>
+          </select>
+        </div>
+        <div id="mapa-colonias" style="height:420px;border-radius:var(--radius);overflow:hidden;z-index:0"></div>
+        <div id="mapa-leyenda" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px"></div>
+        <div id="mapa-vacio" style="font-size:13px;color:var(--text2);margin-top:8px;display:none"></div>
       </div>
 
       <div class="btn-row" style="justify-content:flex-start;gap:10px">
@@ -929,9 +943,66 @@ async function renderDashboard() {
         ).join('')
       : '<div style="font-size:13px;color:var(--text2);padding:8px 0">Nadie superó el umbral en este periodo.</div>';
 
+    renderMapa();
+
   } catch(e) {
     toast('Error al cargar el dashboard.');
   }
+}
+
+// ── Mapa de colonias ───────────────────────────────────────────
+const ORIGEN_COLORES = {
+  'NEGOCIO':'#1a6fc4', 'RECOLECTORES':'#0f7a54', 'CASA-HABITACIÓN':'#c0392b',
+  'CEA':'#8e44ad', 'LA OLA':'#e67e22', 'CONTRATISTAS':'#16a085'
+};
+function colorOrigen(o){ return ORIGEN_COLORES[o] || '#7f8c8d'; }
+
+let _map = null, _mapLayer = null;
+async function renderMapa() {
+  if (typeof L === 'undefined') return;  // Leaflet no cargó (sin internet)
+  const desde = document.getElementById('d-desde').value || todayStr();
+  const hasta = document.getElementById('d-hasta').value || todayStr();
+  const pga = document.getElementById('mapa-pga').value;
+  let cols;
+  try {
+    const r = await api('/api/mapa?desde=' + desde + '&hasta=' + hasta +
+      (pga ? '&pga=' + encodeURIComponent(pga) : ''));
+    cols = r.colonias || [];
+  } catch(e) { return; }
+
+  if (!_map) {
+    _map = L.map('mapa-colonias').setView([25.5428, -103.4068], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '© OpenStreetMap'
+    }).addTo(_map);
+  }
+  if (_mapLayer) _mapLayer.remove();
+  _mapLayer = L.layerGroup().addTo(_map);
+
+  const origenesUsados = new Set();
+  cols.forEach(c => {
+    origenesUsados.add(c.origen);
+    L.circleMarker([c.lat, c.lng], {
+      radius: Math.min(7 + c.count, 26),
+      color: colorOrigen(c.origen), fillColor: colorOrigen(c.origen),
+      fillOpacity: 0.65, weight: 1
+    }).bindPopup('<b>' + c.colonia + '</b><br>' + c.count +
+      ' entrada(s)<br>Origen dominante: ' + c.origen).addTo(_mapLayer);
+  });
+
+  if (cols.length) {
+    _map.fitBounds(cols.map(c => [c.lat, c.lng]), { padding: [30, 30], maxZoom: 14 });
+  }
+  document.getElementById('mapa-leyenda').innerHTML = [...origenesUsados].map(o =>
+    '<span style="display:inline-flex;align-items:center;gap:5px">' +
+    '<span style="width:12px;height:12px;border-radius:50%;background:' + colorOrigen(o) +
+    ';display:inline-block"></span>' + o + '</span>').join('');
+  const vac = document.getElementById('mapa-vacio');
+  vac.style.display = cols.length ? 'none' : 'block';
+  vac.textContent = 'Sin colonias ubicadas para este periodo (¿ya se corrió geocode_colonias.py?).';
+
+  // Leaflet necesita recalcular tamaño al mostrarse dentro de una pestaña
+  setTimeout(() => _map.invalidateSize(), 150);
 }
 
 // ── Fecha: normalización y formato ─────────────────────────────
@@ -1167,6 +1238,8 @@ initRol();
 _initPlacaHint();
 _initFiltrosHistorial();
 document.getElementById('nf-pga').innerHTML =
+  '<option value="">Todos los PGA</option>' + PGAS.map(p => '<option>' + p + '</option>').join('');
+document.getElementById('mapa-pga').innerHTML =
   '<option value="">Todos los PGA</option>' + PGAS.map(p => '<option>' + p + '</option>').join('');
 
 document.getElementById('topbar-date').textContent =
