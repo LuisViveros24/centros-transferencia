@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, render_template, send_file, Response
 import psycopg2
 import psycopg2.extras
-import os, io
+import os, io, re
 from datetime import datetime, date
 from functools import wraps
 
@@ -126,6 +126,23 @@ def crear_registro():
     d = request.get_json()
     if not d:
         return jsonify({'error': 'JSON requerido'}), 400
+
+    # m³ obligatorio y mayor a 0 (entradas y salidas)
+    try:
+        m3 = float(d.get('m3'))
+    except (TypeError, ValueError):
+        m3 = 0
+    if m3 <= 0:
+        return jsonify({'error': 'Los metros cúbicos son obligatorios y deben ser mayores a 0'}), 400
+
+    # Placa obligatoria en entradas: 6-8 alfanuméricos (ignorando espacios
+    # y guiones) o el valor especial SIN PLACAS. Regla validada contra los
+    # datos de producción (94% de las placas tienen 7 alfanuméricos).
+    if d.get('tipo', 'ENTRADA') == 'ENTRADA':
+        placa_norm = re.sub(r'[^A-Z0-9]', '', str(d.get('placa') or '').upper())
+        if placa_norm != 'SINPLACAS' and not (6 <= len(placa_norm) <= 8):
+            return jsonify({'error': 'Placa inválida: escribe de 6 a 8 letras/números, o "SIN PLACAS"'}), 400
+
     conn = get_db()
     try:
         with conn:
@@ -148,7 +165,7 @@ def crear_registro():
                     d.get('colonia', ''),
                     d.get('vehiculo', ''),
                     d.get('placa', ''),
-                    float(d.get('m3') or 0),
+                    m3,
                     d.get('obs', '')
                 ))
     finally:

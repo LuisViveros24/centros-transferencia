@@ -272,8 +272,8 @@
         </div>
         <div class="form-grid cols-2" style="margin-top:14px">
           <div class="field">
-            <label>Placa</label>
-            <input type="text" id="e-placa" placeholder="Ej. ABC-123-D" maxlength="20" style="text-transform:uppercase"/>
+            <label><span class="req">*</span> Placa</label>
+            <input type="text" id="e-placa" placeholder="Ej. ABC-123-D o SIN PLACAS" maxlength="20" style="text-transform:uppercase"/>
             <div id="e-placa-hint" style="display:none;align-items:center;gap:8px;margin-top:4px;
                  padding:6px 10px;background:var(--blue-bg);border:1px solid var(--blue);
                  border-radius:var(--radius);font-size:12px;flex-wrap:wrap">
@@ -282,7 +282,7 @@
                       onclick="aplicarAutocompletado()">Aplicar</button>
             </div>
           </div>
-          <div class="field"><label>Metros cúbicos (m³)</label><input type="number" id="e-m3" placeholder="0.00" min="0" step="0.01"/></div>
+          <div class="field"><label><span class="req">*</span> Metros cúbicos (m³)</label><input type="number" id="e-m3" placeholder="0.00" min="0" step="0.01"/></div>
         </div>
         <div class="field" style="margin-top:14px"><label>Observaciones</label>
           <textarea id="e-obs" maxlength="300" placeholder="Notas adicionales..."
@@ -319,7 +319,7 @@
         </div>
         <div class="form-grid cols-2" style="margin-top:14px">
           <div class="field"><label>Placa</label><input type="text" id="s-placa" placeholder="Ej. ABC-123-D" maxlength="20" style="text-transform:uppercase"/></div>
-          <div class="field"><label>Metros cúbicos (m³)</label><input type="number" id="s-m3" placeholder="0.00" min="0" step="0.01"/></div>
+          <div class="field"><label><span class="req">*</span> Metros cúbicos (m³)</label><input type="number" id="s-m3" placeholder="0.00" min="0" step="0.01"/></div>
         </div>
         <div class="field" style="margin-top:14px"><label>Observaciones</label>
           <textarea id="s-obs" maxlength="300" placeholder="Notas del viaje..."
@@ -638,6 +638,13 @@ async function registrarEntrada() {
   if (!pga)   { toast('Selecciona un PGA primero.'); return; }
   if (!fecha) { toast('La fecha es obligatoria.'); return; }
   if (!origen){ toast('El campo Origen es obligatorio.'); return; }
+  const m3 = parseFloat(document.getElementById('e-m3').value);
+  if (!m3 || m3 <= 0) { toast('Los metros cúbicos son obligatorios y deben ser mayores a 0.'); return; }
+  const placa = document.getElementById('e-placa').value.trim().toUpperCase();
+  const placaNorm = placa.replace(/[^A-Z0-9]/g, '');
+  if (placaNorm !== 'SINPLACAS' && (placaNorm.length < 6 || placaNorm.length > 8)) {
+    toast('Placa inválida: escribe de 6 a 8 letras/números, o "SIN PLACAS".'); return;
+  }
   let carga = document.getElementById('e-carga').value;
   if (carga === 'OTRO') carga = document.getElementById('e-otro-txt').value.trim() || 'OTRO';
   const btn = document.getElementById('btn-registrar-e');
@@ -655,8 +662,8 @@ async function registrarEntrada() {
         calle: document.getElementById('e-calle').value.trim(),
         colonia: document.getElementById('e-colonia').value.trim(),
         vehiculo: document.getElementById('e-vehiculo').value,
-        placa: document.getElementById('e-placa').value.trim().toUpperCase(),
-        m3: parseFloat(document.getElementById('e-m3').value) || 0,
+        placa: placa,
+        m3: m3,
         obs: document.getElementById('e-obs').value.trim()
       })
     });
@@ -680,6 +687,8 @@ async function registrarSalida() {
   const fecha = document.getElementById('s-fecha').value;
   if (!pga)   { toast('Selecciona un PGA primero.'); return; }
   if (!fecha) { toast('La fecha es obligatoria.'); return; }
+  const m3 = parseFloat(document.getElementById('s-m3').value);
+  if (!m3 || m3 <= 0) { toast('Los metros cúbicos son obligatorios y deben ser mayores a 0.'); return; }
   const volteo = document.getElementById('s-volteo').value || 'VOLTEO';
   const btn = document.getElementById('btn-registrar-s');
   btn.disabled = true;
@@ -694,7 +703,7 @@ async function registrarSalida() {
         origen: '', colonia: volteo,
         vehiculo: 'VOLTEO',
         placa: document.getElementById('s-placa').value.trim().toUpperCase(),
-        m3: parseFloat(document.getElementById('s-m3').value) || 0,
+        m3: m3,
         obs: document.getElementById('s-obs').value.trim()
       })
     });
