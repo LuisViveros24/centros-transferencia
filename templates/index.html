@@ -252,7 +252,7 @@
             <select id="e-vehiculo">
               <option value="">— Seleccionar —</option>
               <option>CARROMATO</option><option>MOTOCARRO</option><option>VEHÍCULO PARTICULAR</option>
-              <option>VEHÍCULO PÚBLICO</option><option>CONTRATISTAS</option>
+              <option>VEHÍCULO PÚBLICO</option><option>OTRO</option>
             </select>
           </div>
           <div class="field"><label>Tipo de carga</label>
@@ -1053,7 +1053,12 @@ function ocultarHintPlaca() {
 function aplicarAutocompletado() {
   if (!_placaSug) return;
   const r = _placaSug;
-  if (r.vehiculo) document.getElementById('e-vehiculo').value = r.vehiculo;
+  if (r.vehiculo) {
+    const vSel = document.getElementById('e-vehiculo');
+    vSel.value = r.vehiculo;
+    // Valores históricos que ya no existen en la lista (ej. CONTRATISTAS) → OTRO
+    if (vSel.value !== r.vehiculo) vSel.value = 'OTRO';
+  }
   if (r.origen)   document.getElementById('e-origen').value   = r.origen;
   if (r.nombre)   document.getElementById('e-nombre').value   = r.nombre;
   if (r.calle)    document.getElementById('e-calle').value    = r.calle;
