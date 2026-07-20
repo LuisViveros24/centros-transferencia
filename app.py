@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, send_file, Response, g
+from flask import Flask, request, jsonify, render_template, send_file, Response, g, make_response
 import psycopg2
 import psycopg2.extras
 import os, io, re, hmac
@@ -143,7 +143,12 @@ def next_folio(tipo, cur):
 @app.route('/')
 @requiere_auth
 def index():
-    return render_template('index.html')
+    # no-store: el navegador siempre pide la versión más reciente del HTML.
+    # Evita que un operador quede con una copia vieja en caché tras un deploy
+    # (frontend viejo + backend nuevo = errores confusos).
+    resp = make_response(render_template('index.html'))
+    resp.headers['Cache-Control'] = 'no-store, must-revalidate'
+    return resp
 
 @app.route('/api/whoami', methods=['GET'])
 @requiere_auth

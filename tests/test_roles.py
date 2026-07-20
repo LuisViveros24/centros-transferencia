@@ -74,6 +74,13 @@ class TestCapturaPermitido:
         with patch('app.get_db', return_value=fake_db()):
             assert client.get('/', headers=AUTH_CAPTURA).status_code != 401
 
+    def test_index_no_se_cachea(self, client):
+        """El HTML no debe quedar cacheado, para que un deploy nuevo llegue
+        de inmediato a los operadores (evita frontend viejo + backend nuevo)."""
+        with patch('app.get_db', return_value=fake_db()):
+            r = client.get('/', headers=AUTH_CAPTURA)
+        assert 'no-store' in r.headers.get('Cache-Control', '')
+
 
 class TestAdmin:
     def test_admin_ve_dashboard(self, client):
