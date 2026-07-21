@@ -82,6 +82,27 @@ class TestCapturaPermitido:
         assert 'no-store' in r.headers.get('Cache-Control', '')
 
 
+class TestCredencialesNoASCII:
+    """El login debe funcionar con contraseñas que tengan acentos o ñ
+    (hmac.compare_digest sobre str truena con caracteres no-ASCII)."""
+
+    def test_admin_con_password_con_acentos(self, client):
+        user, pw = 'APGA2627', 'Contraseñá2627'
+        token = base64.b64encode((user + ':' + pw).encode('utf-8')).decode()
+        with patch.object(app_module, 'ADMIN_USER', user), \
+             patch.object(app_module, 'ADMIN_PASS', pw):
+            r = client.get('/api/whoami', headers={'Authorization': 'Basic ' + token})
+        assert r.status_code == 200
+        assert r.get_json()['rol'] == 'admin'
+
+    def test_password_no_ascii_incorrecta_devuelve_401(self, client):
+        token = base64.b64encode('APGA2627:otraseñá'.encode('utf-8')).decode()
+        with patch.object(app_module, 'ADMIN_USER', 'APGA2627'), \
+             patch.object(app_module, 'ADMIN_PASS', 'Contraseñá2627'):
+            r = client.get('/api/whoami', headers={'Authorization': 'Basic ' + token})
+        assert r.status_code == 401
+
+
 class TestLogout:
     def test_logout_responde_401_con_credenciales_validas(self, client):
         """El logout debe responder 401 aunque lleguen credenciales válidas,

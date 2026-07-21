@@ -78,8 +78,12 @@ def init_db():
 def _cred_ok(auth, exp_user, exp_pass):
     if not exp_user or not exp_pass or not auth or auth.username is None or auth.password is None:
         return False
-    return hmac.compare_digest(auth.username, exp_user) and \
-           hmac.compare_digest(auth.password, exp_pass)
+    # Comparar en bytes UTF-8: hmac.compare_digest sobre str truena con
+    # caracteres no-ASCII (acentos, ñ), lo que rompería un login con esos
+    # caracteres en la contraseña.
+    def eq(a, b):
+        return hmac.compare_digest(a.encode('utf-8'), b.encode('utf-8'))
+    return eq(auth.username, exp_user) and eq(auth.password, exp_pass)
 
 def _rol_de(auth):
     """'admin', 'captura' o None según las credenciales recibidas."""
