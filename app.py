@@ -150,6 +150,18 @@ def index():
     resp.headers['Cache-Control'] = 'no-store, must-revalidate'
     return resp
 
+@app.route('/logout')
+def logout():
+    """Cierre de sesión para HTTP Basic Auth. Responde 401 SIEMPRE (aunque
+    lleguen credenciales válidas) con el mismo realm de la app, para que el
+    navegador considere inválidas las credenciales cacheadas y vuelva a pedir
+    usuario y contraseña en el siguiente acceso."""
+    return Response(
+        'Sesión cerrada. Para volver a entrar, abre de nuevo la aplicación.',
+        401,
+        {'WWW-Authenticate': 'Basic realm="CT App"', 'Cache-Control': 'no-store'}
+    )
+
 @app.route('/api/whoami', methods=['GET'])
 @requiere_auth
 def whoami():

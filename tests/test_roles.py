@@ -82,6 +82,18 @@ class TestCapturaPermitido:
         assert 'no-store' in r.headers.get('Cache-Control', '')
 
 
+class TestLogout:
+    def test_logout_responde_401_con_credenciales_validas(self, client):
+        """El logout debe responder 401 aunque lleguen credenciales válidas,
+        para invalidar la sesión Basic Auth cacheada."""
+        r = client.get('/logout', headers=AUTH_ADMIN)
+        assert r.status_code == 401
+        assert 'Basic realm="CT App"' in r.headers.get('WWW-Authenticate', '')
+
+    def test_logout_sin_credenciales_tambien_401(self, client):
+        assert client.get('/logout').status_code == 401
+
+
 class TestAdmin:
     def test_admin_ve_dashboard(self, client):
         with patch('app.get_db', return_value=fake_db(fetchone_value={'c': 0, 'v': 0})):

@@ -154,6 +154,9 @@
 
   @media(max-width:640px){
     .menu-btn{display:flex;align-items:center;justify-content:center}
+    .topbar{padding:0 12px;gap:8px}
+    .topbar-date{display:none}  /* en móvil se prioriza el botón Salir */
+    .logout-btn{margin-left:auto}  /* ancla el botón a la derecha sin la fecha */
     .sidebar{display:none;position:fixed;top:56px;left:0;height:calc(100vh - 56px);z-index:150;width:220px;box-shadow:4px 0 16px rgba(0,0,0,0.18)}
     .sidebar.open{display:flex}
     .content{padding:16px}
@@ -193,6 +196,13 @@
     <div class="topbar-sub">Control de flujo de viajes</div>
   </div>
   <div class="topbar-date" id="topbar-date"></div>
+  <button class="btn btn-ghost logout-btn" onclick="cerrarSesion()" title="Cerrar sesión"
+          style="padding:5px 12px;font-size:12px;display:flex;align-items:center;gap:6px;flex-shrink:0">
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="display:block">
+      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+    </svg>
+    <span>Salir</span>
+  </button>
 </div>
 
 <div class="main">
@@ -1228,6 +1238,21 @@ function aplicarAutocompletado() {
 // ── Export Excel ───────────────────────────────────────────────
 function exportarExcel() {
   window.location.href = '/api/export/excel';
+}
+
+// ── Cerrar sesión ──────────────────────────────────────────────
+async function cerrarSesion() {
+  if (!confirm('¿Cerrar sesión? El navegador volverá a pedir usuario y contraseña.')) return;
+  // HTTP Basic Auth no tiene logout estándar: enviamos credenciales inválidas
+  // al mismo realm para invalidar las cacheadas, y luego vamos a /logout (que
+  // siempre responde 401 → el navegador vuelve a pedir usuario y contraseña).
+  try {
+    await fetch('/logout', {
+      headers: { 'Authorization': 'Basic ' + btoa('logout:logout') },
+      cache: 'no-store'
+    });
+  } catch(e) {}
+  window.location.href = '/logout';
 }
 
 // ── Init ───────────────────────────────────────────────────────
