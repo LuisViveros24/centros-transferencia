@@ -247,8 +247,9 @@
           <div class="field"><label><span class="req">*</span> Origen</label>
             <select id="e-origen">
               <option value="">— Seleccionar —</option>
-              <option>NEGOCIO</option><option>RECOLECTORES</option><option>CASA-HABITACIÓN</option>
-              <option>CEA</option><option>LA OLA</option><option>CONTRATISTAS</option>
+              <option>CARROMATOS</option><option>PARTICULARES</option><option>CONTRATISTAS</option>
+              <option>NEGOCIO</option><option>LA OLA</option><option>CEA</option>
+              <option>PARQUES Y JARDINES</option><option>MOTOCARROS</option>
             </select>
           </div>
         </div>
@@ -261,11 +262,7 @@
         </div>
         <div class="form-grid cols-4">
           <div class="field"><label>Tipo de vehículo</label>
-            <select id="e-vehiculo">
-              <option value="">— Seleccionar —</option>
-              <option>CARROMATO</option><option>MOTOCARRO</option><option>VEHÍCULO PARTICULAR</option>
-              <option>VEHÍCULO PÚBLICO</option><option>OTRO</option>
-            </select>
+            <input type="text" id="e-vehiculo" maxlength="40" placeholder="Ej. Volteo, Nissan..."/>
           </div>
           <div class="field"><label>Tipo de carga</label>
             <select id="e-carga" onchange="toggleOtroE(this)">
@@ -416,8 +413,10 @@
             </select>
             <select id="nf-origen" style="font-size:12px;padding:4px 8px;width:auto" onchange="renderDashboard()">
               <option value="">Todos (más de 3)</option>
-              <option>NEGOCIO</option><option>RECOLECTORES</option><option>CASA-HABITACIÓN</option>
-              <option>CEA</option><option>LA OLA</option><option>CONTRATISTAS</option>
+              <option>CARROMATOS</option><option>PARTICULARES</option><option>CONTRATISTAS</option>
+              <option>NEGOCIO</option><option>LA OLA</option><option>CEA</option>
+              <option>PARQUES Y JARDINES</option><option>MOTOCARROS</option>
+              <option>CASA-HABITACIÓN</option><option>RECOLECTORES</option>
             </select>
           </div>
         </div>
@@ -508,7 +507,7 @@
               <th></th>
               <th><select class="filtro-input" data-filtro="pga" id="filtro-pga"><option value="">Todos</option></select></th>
               <th></th>
-              <th><select class="filtro-input" data-filtro="origen"><option value="">Todos</option><option>NEGOCIO</option><option>RECOLECTORES</option><option>CASA-HABITACIÓN</option><option>CEA</option><option>LA OLA</option><option>CONTRATISTAS</option></select></th>
+              <th><select class="filtro-input" data-filtro="origen"><option value="">Todos</option><option>CARROMATOS</option><option>PARTICULARES</option><option>CONTRATISTAS</option><option>NEGOCIO</option><option>LA OLA</option><option>CEA</option><option>PARQUES Y JARDINES</option><option>MOTOCARROS</option><option>CASA-HABITACIÓN</option><option>RECOLECTORES</option></select></th>
               <th><input type="text" class="filtro-input" data-filtro="nombre" placeholder="Filtrar"/></th>
               <th><input type="text" class="filtro-input" data-filtro="calle" placeholder="Filtrar"/></th>
               <th><input type="text" class="filtro-input" data-filtro="colonia" placeholder="Filtrar"/></th>
@@ -963,7 +962,8 @@ async function renderDashboard() {
 // ── Mapa de colonias ───────────────────────────────────────────
 const ORIGEN_COLORES = {
   'NEGOCIO':'#1a6fc4', 'RECOLECTORES':'#0f7a54', 'CASA-HABITACIÓN':'#c0392b',
-  'CEA':'#8e44ad', 'LA OLA':'#e67e22', 'CONTRATISTAS':'#16a085'
+  'CEA':'#8e44ad', 'LA OLA':'#e67e22', 'CONTRATISTAS':'#16a085',
+  'CARROMATOS':'#2980b9', 'PARTICULARES':'#d35400', 'PARQUES Y JARDINES':'#27ae60', 'MOTOCARROS':'#c0392b'
 };
 function colorOrigen(o){ return ORIGEN_COLORES[o] || '#7f8c8d'; }
 function escHtml(s){ return String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -1209,12 +1209,7 @@ function ocultarHintPlaca() {
 function aplicarAutocompletado() {
   if (!_placaSug) return;
   const r = _placaSug;
-  if (r.vehiculo) {
-    const vSel = document.getElementById('e-vehiculo');
-    vSel.value = r.vehiculo;
-    // Valores históricos que ya no existen en la lista (ej. CONTRATISTAS) → OTRO
-    if (vSel.value !== r.vehiculo) vSel.value = 'OTRO';
-  }
+  if (r.vehiculo) document.getElementById('e-vehiculo').value = r.vehiculo;
   if (r.origen)   document.getElementById('e-origen').value   = r.origen;
   if (r.nombre)   document.getElementById('e-nombre').value   = r.nombre;
   if (r.calle)    document.getElementById('e-calle').value    = r.calle;
