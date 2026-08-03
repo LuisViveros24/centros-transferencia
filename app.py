@@ -44,6 +44,7 @@ def init_db():
                         detalle   TEXT,
                         origen    TEXT,
                         nombre    TEXT,
+                        telefono  TEXT,
                         calle     TEXT,
                         colonia   TEXT,
                         vehiculo  TEXT,
@@ -248,8 +249,8 @@ def crear_registro():
                 folio = next_folio(d.get('tipo', 'ENTRADA'), cur)
                 cur.execute('''
                     INSERT INTO registros
-                    (folio,tipo,fecha,hora,pga,detalle,origen,nombre,calle,colonia,vehiculo,placa,m3,obs)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    (folio,tipo,fecha,hora,pga,detalle,origen,nombre,telefono,calle,colonia,vehiculo,placa,m3,obs)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ''', (
                     folio,
                     d.get('tipo', 'ENTRADA'),
@@ -259,6 +260,7 @@ def crear_registro():
                     d.get('detalle', ''),
                     d.get('origen', ''),
                     d.get('nombre', ''),
+                    d.get('telefono', ''),
                     d.get('calle', ''),
                     d.get('colonia', ''),
                     d.get('vehiculo', ''),
@@ -282,7 +284,7 @@ def buscar_placa():
         with conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT vehiculo, detalle, origen, nombre, calle, colonia
+                    SELECT vehiculo, detalle, origen, nombre, telefono, calle, colonia
                     FROM registros
                     WHERE UPPER(placa) LIKE %s AND tipo='ENTRADA'
                     ORDER BY id DESC LIMIT 1
@@ -539,7 +541,7 @@ def export_excel():
     ws.title = 'Registros'
 
     headers = ['ID', 'Folio', 'Tipo', 'Fecha', 'Hora', 'PGA', 'Detalle/Carga',
-               'Origen', 'Nombre', 'Calle', 'Colonia', 'Vehículo', 'Placa', 'm³', 'Observaciones', 'Registrado']
+               'Origen', 'Nombre', 'Teléfono', 'Calle', 'Colonia', 'Vehículo', 'Placa', 'm³', 'Observaciones', 'Registrado']
     header_fill = PatternFill(fill_type='solid', fgColor='1a6fc4')
     header_font = Font(bold=True, color='FFFFFF')
     for col, h in enumerate(headers, 1):
@@ -551,11 +553,12 @@ def export_excel():
     for row in rows:
         ws.append([
             row['id'], row['folio'], row['tipo'], row['fecha'], row['hora'],
-            row['pga'], row['detalle'], row['origen'], row['nombre'], row['calle'], row['colonia'],
+            row['pga'], row['detalle'], row['origen'], row['nombre'],
+            row.get('telefono', ''), row['calle'], row['colonia'],
             row['vehiculo'], row['placa'], row['m3'], row['obs'], row['creado_en']
         ])
 
-    col_widths = [6, 10, 8, 12, 8, 18, 18, 16, 22, 18, 18, 18, 12, 8, 30, 18]
+    col_widths = [6, 10, 8, 12, 8, 18, 18, 16, 22, 14, 18, 18, 18, 12, 8, 30, 18]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
 
