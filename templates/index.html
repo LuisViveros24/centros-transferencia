@@ -249,7 +249,7 @@
               <option value="">— Seleccionar —</option>
               <option>CARROMATOS</option><option>PARTICULARES</option><option>CONTRATISTAS</option>
               <option>NEGOCIO</option><option>LA OLA</option><option>CEA</option>
-              <option>PARQUES Y JARDINES</option><option>MOTOCARROS</option>
+              <option>PARQUES Y JARDINES</option><option>MOTOCARROS</option><option>JARDINERÍA</option>
             </select>
           </div>
         </div>
@@ -420,7 +420,7 @@
               <option value="">Todos (más de 3)</option>
               <option>CARROMATOS</option><option>PARTICULARES</option><option>CONTRATISTAS</option>
               <option>NEGOCIO</option><option>LA OLA</option><option>CEA</option>
-              <option>PARQUES Y JARDINES</option><option>MOTOCARROS</option>
+              <option>PARQUES Y JARDINES</option><option>MOTOCARROS</option><option>JARDINERÍA</option>
               <option>CASA-HABITACIÓN</option><option>RECOLECTORES</option>
             </select>
           </div>
@@ -513,7 +513,7 @@
               <th></th>
               <th><select class="filtro-input" data-filtro="pga" id="filtro-pga"><option value="">Todos</option></select></th>
               <th></th>
-              <th><select class="filtro-input" data-filtro="origen"><option value="">Todos</option><option>CARROMATOS</option><option>PARTICULARES</option><option>CONTRATISTAS</option><option>NEGOCIO</option><option>LA OLA</option><option>CEA</option><option>PARQUES Y JARDINES</option><option>MOTOCARROS</option><option>CASA-HABITACIÓN</option><option>RECOLECTORES</option></select></th>
+              <th><select class="filtro-input" data-filtro="origen"><option value="">Todos</option><option>CARROMATOS</option><option>PARTICULARES</option><option>CONTRATISTAS</option><option>NEGOCIO</option><option>LA OLA</option><option>CEA</option><option>PARQUES Y JARDINES</option><option>MOTOCARROS</option><option>JARDINERÍA</option><option>CASA-HABITACIÓN</option><option>RECOLECTORES</option></select></th>
               <th><input type="text" class="filtro-input" data-filtro="nombre" placeholder="Filtrar"/></th>
               <th><input type="text" class="filtro-input" data-filtro="telefono" placeholder="Filtrar"/></th>
               <th><input type="text" class="filtro-input" data-filtro="calle" placeholder="Filtrar"/></th>
@@ -975,7 +975,8 @@ async function renderDashboard() {
 const ORIGEN_COLORES = {
   'NEGOCIO':'#1a6fc4', 'RECOLECTORES':'#0f7a54', 'CASA-HABITACIÓN':'#c0392b',
   'CEA':'#8e44ad', 'LA OLA':'#e67e22', 'CONTRATISTAS':'#16a085',
-  'CARROMATOS':'#2980b9', 'PARTICULARES':'#d35400', 'PARQUES Y JARDINES':'#27ae60', 'MOTOCARROS':'#c0392b'
+  'CARROMATOS':'#2980b9', 'PARTICULARES':'#d35400', 'PARQUES Y JARDINES':'#27ae60', 'MOTOCARROS':'#c0392b',
+  'JARDINERÍA':'#2ecc71'
 };
 function colorOrigen(o){ return ORIGEN_COLORES[o] || '#7f8c8d'; }
 function escHtml(s){ return String(s == null ? '' : s).replace(/[&<>"']/g,
