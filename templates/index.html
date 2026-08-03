@@ -260,6 +260,11 @@
             style="min-height:56px"></textarea>
           <div class="char-count" id="e-nombre-ctr">0/200</div>
         </div>
+        <div class="field" style="margin-bottom:14px">
+          <label>Teléfono de contacto</label>
+          <input type="tel" id="e-telefono" maxlength="20" inputmode="tel"
+                 placeholder="Ej. 871 123 4567" autocomplete="off"/>
+        </div>
         <div class="form-grid cols-4">
           <div class="field"><label>Tipo de vehículo</label>
             <input type="text" id="e-vehiculo" maxlength="40" placeholder="Ej. Volteo, Nissan..."/>
@@ -491,6 +496,7 @@
               <th style="width:120px">Detalle</th>
               <th style="width:110px">Origen</th>
               <th style="width:140px">Nombre</th>
+              <th style="width:110px">Teléfono</th>
               <th style="width:110px">Calle</th>
               <th style="width:110px">Colonia</th>
               <th style="width:130px">Vehículo</th>
@@ -509,6 +515,7 @@
               <th></th>
               <th><select class="filtro-input" data-filtro="origen"><option value="">Todos</option><option>CARROMATOS</option><option>PARTICULARES</option><option>CONTRATISTAS</option><option>NEGOCIO</option><option>LA OLA</option><option>CEA</option><option>PARQUES Y JARDINES</option><option>MOTOCARROS</option><option>CASA-HABITACIÓN</option><option>RECOLECTORES</option></select></th>
               <th><input type="text" class="filtro-input" data-filtro="nombre" placeholder="Filtrar"/></th>
+              <th><input type="text" class="filtro-input" data-filtro="telefono" placeholder="Filtrar"/></th>
               <th><input type="text" class="filtro-input" data-filtro="calle" placeholder="Filtrar"/></th>
               <th><input type="text" class="filtro-input" data-filtro="colonia" placeholder="Filtrar"/></th>
               <th><select class="filtro-input" data-filtro="vehiculo"><option value="">Todos</option><option>CARROMATO</option><option>MOTOCARRO</option><option>VEHÍCULO PARTICULAR</option><option>VEHÍCULO PÚBLICO</option><option>OTRO</option><option>CONTRATISTAS</option><option>VOLTEO</option></select></th>
@@ -678,7 +685,7 @@ function autoNow(fId, hId) {
 
 // ── Limpiar ────────────────────────────────────────────────────
 function limpiarE() {
-  ['e-fecha','e-hora','e-origen','e-nombre','e-vehiculo','e-carga','e-calle','e-colonia','e-placa','e-m3','e-obs','e-otro-txt']
+  ['e-fecha','e-hora','e-origen','e-nombre','e-telefono','e-vehiculo','e-carga','e-calle','e-colonia','e-placa','e-m3','e-obs','e-otro-txt']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('e-otro-wrap').classList.remove('vis');
   document.getElementById('e-ctr').textContent = '0/60';
@@ -723,6 +730,7 @@ async function registrarEntrada() {
         pga, detalle: carga || '',
         origen,
         nombre: document.getElementById('e-nombre').value.trim(),
+        telefono: document.getElementById('e-telefono').value.trim(),
         calle: document.getElementById('e-calle').value.trim(),
         colonia: document.getElementById('e-colonia').value.trim(),
         vehiculo: document.getElementById('e-vehiculo').value,
@@ -1038,7 +1046,7 @@ function fechaDisplay(rawFecha) {
 
 // ── Historial: estado de filtros ───────────────────────────────
 let _historialRows = [];
-let _historialFiltros = { folio:'', tipo:'', fecha:'', pga:'', origen:'', nombre:'', calle:'', colonia:'', vehiculo:'', placa:'', obs:'', fdesde:'', fhasta:'' };
+let _historialFiltros = { folio:'', tipo:'', fecha:'', pga:'', origen:'', nombre:'', telefono:'', calle:'', colonia:'', vehiculo:'', placa:'', obs:'', fdesde:'', fhasta:'' };
 
 function matchesFiltroHistorial(r) {
   const f = _historialFiltros;
@@ -1055,6 +1063,7 @@ function matchesFiltroHistorial(r) {
   if (!igual(r.pga,        f.pga))     return false;
   if (!igual(r.origen,     f.origen))  return false;
   if (!contiene(r.nombre,  f.nombre))  return false;
+  if (!contiene(r.telefono, f.telefono)) return false;
   if (!contiene(r.calle,   f.calle))   return false;
   if (!contiene(r.colonia, f.colonia)) return false;
   if (!igual(r.vehiculo,   f.vehiculo)) return false;
@@ -1075,6 +1084,7 @@ function filaHistorial(r) {
     '<td>' + (r.detalle||'—') + '</td>' +
     '<td>' + (r.origen||'—') + '</td>' +
     '<td>' + (r.nombre||'—') + '</td>' +
+    '<td>' + (r.telefono||'—') + '</td>' +
     '<td>' + (r.calle||'—') + '</td>' +
     '<td>' + (r.colonia||'—') + '</td>' +
     '<td>' + (r.vehiculo||'—') + '</td>' +
@@ -1094,7 +1104,7 @@ function aplicarFiltrosHistorial() {
     const msg = (!hayFiltro && _historialRows.length === 0)
       ? 'No hay registros aún.'
       : 'Ningún registro coincide con los filtros.';
-    body.innerHTML = '<tr><td colspan="16" style="text-align:center;color:var(--text2);padding:20px">' + msg + '</td></tr>';
+    body.innerHTML = '<tr><td colspan="17" style="text-align:center;color:var(--text2);padding:20px">' + msg + '</td></tr>';
   } else {
     body.innerHTML = filtered.map(filaHistorial).join('');
   }
@@ -1199,7 +1209,7 @@ async function _buscarPlaca(placa) {
     const r = await api('/api/registros/buscar-placa?q=' + encodeURIComponent(placa));
     if (!r) { ocultarHintPlaca(); return; }
     _placaSug = r;
-    const resumen = [r.vehiculo, r.detalle, r.origen, r.nombre].filter(Boolean).join(' · ');
+    const resumen = [r.vehiculo, r.detalle, r.origen, r.nombre, r.telefono].filter(Boolean).join(' · ');
     document.getElementById('e-placa-hint-text').textContent = '💡 ' + resumen;
     document.getElementById('e-placa-hint').style.display = 'flex';
   } catch(e) { ocultarHintPlaca(); }
@@ -1216,6 +1226,7 @@ function aplicarAutocompletado() {
   if (r.vehiculo) document.getElementById('e-vehiculo').value = r.vehiculo;
   if (r.origen)   document.getElementById('e-origen').value   = r.origen;
   if (r.nombre)   document.getElementById('e-nombre').value   = r.nombre;
+  if (r.telefono) document.getElementById('e-telefono').value = r.telefono;
   if (r.calle)    document.getElementById('e-calle').value    = r.calle;
   if (r.colonia)  document.getElementById('e-colonia').value  = r.colonia;
   if (r.detalle) {

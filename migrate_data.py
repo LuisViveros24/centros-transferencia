@@ -36,6 +36,7 @@ try:
                     detalle   TEXT,
                     origen    TEXT,
                     nombre    TEXT,
+                    telefono  TEXT,
                     colonia   TEXT,
                     vehiculo  TEXT,
                     placa     TEXT,
@@ -51,6 +52,10 @@ try:
             # Agregar columna calle si la tabla ya existía sin ella
             cur.execute('''
                 ALTER TABLE registros ADD COLUMN IF NOT EXISTS calle TEXT
+            ''')
+            # Agregar columna telefono si la tabla ya existía sin ella
+            cur.execute('''
+                ALTER TABLE registros ADD COLUMN IF NOT EXISTS telefono TEXT
             ''')
             print('Creando tabla config...')
             cur.execute('''
