@@ -127,6 +127,19 @@ class TestNombresFrecuentes:
         assert 'HAVING COUNT(*) > 1' in sql, "Con origen el umbral debe ser > 1"
         assert 'CONTRATISTAS' in params, "El origen debe pasarse como parámetro"
 
+    def test_dashboard_nombres_frecuentes_incluye_origen_y_pga(self, client):
+        """La consulta calcula el origen y el PGA dominante de cada persona."""
+        conn = fake_db()
+        cur = conn.cursor.return_value
+        with patch('app.get_db', return_value=conn):
+            client.get('/api/dashboard?desde=2026-07-01&hasta=2026-07-31', headers=AUTH)
+        calls = [c.args[0] for c in cur.execute.call_args_list if 'ARRAY_AGG(nombre' in c.args[0]]
+        assert calls, "No se ejecutó la consulta de nombres frecuentes"
+        sql = calls[0]
+        assert 'mode() WITHIN GROUP (ORDER BY NULLIF(TRIM(origen)' in sql, "Falta el origen dominante"
+        assert 'mode() WITHIN GROUP (ORDER BY pga)' in sql, "Falta el PGA dominante"
+        assert 'AS origen' in sql and 'AS pga' in sql
+
     def test_dashboard_nombres_frecuentes_con_pga(self, client):
         """Con ?pga=X, la consulta filtra por ese PGA (umbral no cambia)."""
         conn = fake_db()

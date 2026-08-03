@@ -486,8 +486,13 @@ def dashboard():
                 if pga_filtro:
                     _nf_clauses += ' AND pga = %s'
                     _nf_params.append(pga_filtro)
+                # mode() WITHIN GROUP = valor más frecuente por persona:
+                # su origen dominante y el PGA donde más dispuso (ignora NULLs,
+                # por eso NULLIF de origen vacío).
                 nombres_frecuentes = qa(
-                    "SELECT (ARRAY_AGG(nombre ORDER BY id DESC))[1] AS nombre, COUNT(*) AS c "
+                    "SELECT (ARRAY_AGG(nombre ORDER BY id DESC))[1] AS nombre, COUNT(*) AS c, "
+                    "mode() WITHIN GROUP (ORDER BY NULLIF(TRIM(origen),'')) AS origen, "
+                    "mode() WITHIN GROUP (ORDER BY pga) AS pga "
                     "FROM registros "
                     "WHERE tipo='ENTRADA' AND fecha BETWEEN %s AND %s"
                     + _nf_clauses +
@@ -506,7 +511,8 @@ def dashboard():
         'm3_ent_tot': round(float(m3_et), 2), 'm3_sal_tot': round(float(m3_st), 2),
         'pga_flow': pga_flow,
         'origen_counts': origen_counts,
-        'nombres_frecuentes': [{'nombre': r['nombre'], 'count': r['c']} for r in nombres_frecuentes],
+        'nombres_frecuentes': [{'nombre': r['nombre'], 'count': r['c'],
+                                'origen': r['origen'], 'pga': r['pga']} for r in nombres_frecuentes],
         'historial': [dict(r) for r in hist]
     })
 

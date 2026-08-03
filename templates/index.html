@@ -941,13 +941,17 @@ async function renderDashboard() {
         }).join('')
       : '<div style="font-size:13px;color:var(--text2);padding:8px 0">Sin registros de entradas aún.</div>';
 
-    // Personas frecuentes (nombre)
+    // Personas frecuentes (nombre + origen dominante + PGA donde más dispuso)
     document.getElementById('nombres-frecuentes').innerHTML = d.nombres_frecuentes.length
       ? d.nombres_frecuentes.map(n =>
           '<div style="background:var(--bg2);border-radius:var(--radius);padding:12px 14px;">' +
-            '<div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">' + n.nombre + '</div>' +
+            '<div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">' + escHtml(n.nombre) + '</div>' +
             '<div style="font-size:24px;font-weight:700;color:var(--text);line-height:1">' + n.count + '</div>' +
             '<div style="font-size:11px;color:var(--text3);margin-top:4px">entradas</div>' +
+            '<div style="font-size:11px;color:var(--text2);margin-top:8px;line-height:1.5">' +
+              '<span style="color:var(--text3)">Origen:</span> ' + escHtml(n.origen || '—') + '<br>' +
+              '<span style="color:var(--text3)">Dispuso en:</span> ' + escHtml(n.pga || '—') +
+            '</div>' +
           '</div>'
         ).join('')
       : '<div style="font-size:13px;color:var(--text2);padding:8px 0">Nadie superó el umbral en este periodo.</div>';
