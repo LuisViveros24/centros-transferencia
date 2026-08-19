@@ -173,6 +173,8 @@
     .page{display:block!important}
     .card{box-shadow:none;border:1px solid #ddd;break-inside:avoid}
   }
+  .dash-sub{display:none}
+  .dash-sub.active{display:block}
 </style>
 </head>
 <body>
@@ -218,6 +220,11 @@
       Salida
       <span class="nbadge" id="nav-badge-out" style="background:var(--green)">0</span>
     </button>
+    <button class="nav-item" onclick="goTo('domicilio',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Domicilios
+      <span class="nbadge" id="nav-badge-dom" style="background:#8b5cf6">0</span>
+    </button>
     <div class="sidebar-section">Análisis</div>
     <button class="nav-item" onclick="goTo('dashboard',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
@@ -226,6 +233,10 @@
     <button class="nav-item" onclick="goTo('historial',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
       Historial
+    </button>
+    <button class="nav-item" onclick="goTo('domicilios-hist',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Historial domicilios
     </button>
   </nav>
 
@@ -350,8 +361,14 @@
     <!-- DASHBOARD -->
     <div id="page-dashboard" class="page">
       <div class="page-title">Dashboard</div>
-      <div class="page-sub">Flujo de viajes por PGA en el periodo seleccionado.</div>
+      <div class="page-sub">Selecciona la vista: flujo de viajes o control de domicilios.</div>
 
+      <div class="subtabs" style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
+        <button class="btn btn-primary" id="subtab-viajes" onclick="dashSub('viajes')">Viajes</button>
+        <button class="btn btn-ghost" id="subtab-domicilios" onclick="dashSub('domicilios')">Domicilios</button>
+      </div>
+
+      <div id="dash-sub-viajes" class="dash-sub active">
       <!-- Barra de filtros -->
       <div class="card" style="margin-bottom:16px;padding:14px 18px">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -444,6 +461,62 @@
         <button class="btn btn-ghost" onclick="window.print()">Imprimir reporte</button>
         <button class="btn btn-ghost" onclick="exportarExcel()">Exportar Excel</button>
       </div>
+      </div><!-- /dash-sub-viajes -->
+
+      <!-- DASHBOARD DOMICILIOS -->
+      <div id="dash-sub-domicilios" class="dash-sub">
+        <div class="card" style="margin-bottom:16px;padding:14px 18px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.05em">Periodo:</span>
+            <button class="btn btn-ghost" style="padding:5px 12px;border-radius:20px;font-size:12px" onclick="setRapidoDom('hoy')">Hoy</button>
+            <button class="btn btn-ghost" style="padding:5px 12px;border-radius:20px;font-size:12px" onclick="setRapidoDom('semana')">Esta semana</button>
+            <button class="btn btn-ghost" style="padding:5px 12px;border-radius:20px;font-size:12px" onclick="setRapidoDom('mes')">Este mes</button>
+            <div style="display:flex;align-items:center;gap:6px;margin-left:4px;flex-wrap:wrap">
+              <span style="font-size:12px;color:var(--text2)">Desde</span>
+              <input type="date" id="dd-desde" style="font-size:12px;padding:4px 8px;width:auto"/>
+              <span style="font-size:12px;color:var(--text2)">Hasta</span>
+              <input type="date" id="dd-hasta" style="font-size:12px;padding:4px 8px;width:auto"/>
+              <select id="dd-equipo" style="font-size:12px;padding:4px 8px;width:auto" onchange="renderDashDomicilios()">
+                <option value="">Todos los equipos</option>
+              </select>
+              <button class="btn btn-primary" style="padding:5px 14px;font-size:12px" onclick="renderDashDomicilios()">Ver</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric-card blue"><div class="metric-label">Domicilios del periodo</div><div class="metric-value" id="dd-total">—</div><div class="metric-sub">registros</div></div>
+          <div class="metric-card"><div class="metric-label">Comercial</div><div class="metric-value" id="dd-comercial">—</div><div class="metric-sub">predios</div></div>
+          <div class="metric-card"><div class="metric-label">Habitacional</div><div class="metric-value" id="dd-habitacional">—</div><div class="metric-sub">predios</div></div>
+          <div class="metric-card"><div class="metric-label">Baldío</div><div class="metric-value" id="dd-baldio">—</div><div class="metric-sub">predios</div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">Problemática — periodo seleccionado</div>
+          <div class="chart-container"><canvas id="ch-dom-prob"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Domicilios por equipo</div>
+          <div class="chart-container"><canvas id="ch-dom-equipo"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Estado del predio</div>
+          <div class="chart-container"><canvas id="ch-dom-estado"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Acción tomada (notificado / amonestado / multado)</div>
+          <div class="chart-container"><canvas id="ch-dom-accion"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Domicilios por día</div>
+          <div class="chart-container"><canvas id="ch-dom-hist"></canvas></div>
+        </div>
+
+        <div class="btn-row" style="justify-content:flex-start;gap:10px">
+          <button class="btn btn-ghost" onclick="window.print()">Imprimir reporte</button>
+          <button class="btn btn-ghost" onclick="exportarExcelDom()">Exportar Excel domicilios</button>
+        </div>
+      </div><!-- /dash-sub-domicilios -->
     </div>
 
     <!-- HISTORIAL -->
@@ -529,6 +602,131 @@
       </div>
     </div>
 
+    <!-- CONTROL DE DOMICILIOS (captura) -->
+    <div id="page-domicilio" class="page">
+      <div class="page-title">Control de domicilios</div>
+      <div class="page-sub">Registra la inspección de cada predio: dirección, uso, estado y problemática detectada.</div>
+      <div class="card">
+        <div class="card-label">Datos del domicilio</div>
+        <div class="form-grid cols-2" style="margin-bottom:16px">
+          <div class="field"><label><span class="req">*</span> Fecha de inspección</label><input type="date" id="dom-fecha"/></div>
+          <div class="field"><label><span class="req">*</span> Dirección (calle y número)</label><input type="text" id="dom-direccion" maxlength="200" placeholder="Ej. Av. Juárez 123"/></div>
+        </div>
+
+        <div class="form-grid cols-2" style="margin-bottom:16px">
+          <div class="field"><label>Folio del acta física</label>
+            <input type="text" id="dom-folio-acta" maxlength="60"
+                   placeholder="Folio del acta de Inspección y Verificación"/>
+          </div>
+          <div class="field"><label>Ubicación (GPS del celular)</label>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <button type="button" class="btn btn-ghost" id="btn-geo" onclick="obtenerUbicacion()">📍 Obtener ubicación</button>
+              <a id="dom-geo-link" href="#" target="_blank" rel="noopener" style="display:none;font-size:12px">Ver en mapa</a>
+              <span id="dom-geo-text" style="font-size:12px;color:var(--text2)">Sin ubicación</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="field" style="margin-bottom:16px">
+          <label><span class="req">*</span> Uso del predio</label>
+          <div class="pga-grid" id="dom-uso"></div>
+        </div>
+
+        <div class="field" id="dom-comercio-wrap" style="margin-bottom:16px;display:none">
+          <label><span class="req">*</span> Nombre del comercio</label>
+          <input type="text" id="dom-comercio" maxlength="120" placeholder="Ej. Abarrotes La Esquina"/>
+        </div>
+
+        <div class="field" style="margin-bottom:16px">
+          <label>Estado del predio</label>
+          <div class="pga-grid" id="dom-estado"></div>
+        </div>
+
+        <div class="field" style="margin-bottom:16px">
+          <label>Problemática <span style="font-weight:400;color:var(--text2);font-size:12px">(puedes elegir varias)</span></label>
+          <div class="pga-grid" id="dom-problematica"></div>
+        </div>
+
+        <div class="field" style="margin-bottom:16px">
+          <label>Acción tomada</label>
+          <div class="pga-grid" id="dom-accion"></div>
+        </div>
+
+        <div class="form-grid cols-2" style="margin-bottom:16px">
+          <div class="field"><label>Equipo que captura</label>
+            <select id="dom-equipo"><option value="">— Seleccionar —</option></select>
+          </div>
+          <div class="field"><label>Plazo para atender</label>
+            <select id="dom-plazo">
+              <option value="">— Seleccionar —</option>
+              <option value="0">El mismo día</option>
+              <option value="24">24 horas</option>
+              <option value="48">48 horas</option>
+              <option value="72">72 horas</option>
+              <option value="96">96 horas</option>
+              <option value="120">120 horas (5 días)</option>
+              <option value="168">168 horas (7 días)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field" style="margin-bottom:16px">
+          <label>Observaciones</label>
+          <textarea id="dom-obs" maxlength="300" placeholder="Notas adicionales del domicilio..."
+            oninput="document.getElementById('dom-obs-ctr').textContent=this.value.length+'/300'"></textarea>
+          <div class="char-count" id="dom-obs-ctr">0/300</div>
+        </div>
+
+        <div class="field">
+          <label>Fotografías (opcionales, máximo 2 — se guardan como PDF descargable)</label>
+          <input type="file" id="dom-fotos-input" accept="image/*" capture="environment" multiple
+                 onchange="onFotosSeleccionadas(this)"/>
+          <div id="dom-fotos-preview" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px"></div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="limpiarDom()">Limpiar</button>
+        <button class="btn btn-primary" id="btn-registrar-dom" onclick="registrarDomicilio()">Registrar domicilio</button>
+      </div>
+    </div>
+
+    <!-- HISTORIAL DE DOMICILIOS -->
+    <div id="page-domicilios-hist" class="page">
+      <div class="table-header">
+        <div class="table-title">Historial de domicilios</div>
+        <div class="table-actions">
+          <span class="count-pill" id="dom-count">0 domicilios</span>
+          <button class="btn btn-ghost" onclick="renderDomicilios()">Actualizar</button>
+          <button class="btn btn-ghost" onclick="exportarExcelDom()">Exportar Excel</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table id="dom-tbl">
+            <thead><tr>
+              <th style="width:55px">ID</th>
+              <th style="width:90px">Folio captura</th>
+              <th style="width:100px">Folio acta</th>
+              <th style="width:100px">Fecha</th>
+              <th>Dirección</th>
+              <th style="width:120px">Uso</th>
+              <th style="width:150px">Nombre comercio</th>
+              <th style="width:110px">Estado</th>
+              <th style="width:150px">Problemática</th>
+              <th style="width:110px">Acción</th>
+              <th style="width:100px">Equipo</th>
+              <th style="width:130px">Plazo / límite</th>
+              <th style="width:170px">Observaciones</th>
+              <th style="width:90px">Ubicación</th>
+              <th style="width:90px">Fotos PDF</th>
+              <th style="width:90px">Acciones</th>
+            </tr></thead>
+            <tbody id="dom-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -536,7 +734,12 @@
 
 <script>
 const PGAS = ['ROVIROSA WADE','LEY SAULO','ESTERITO','RECOVERDE','COMPRESORA'];
+// Equipos que capturan domicilios: nombres provisionales; editar aquí cuando
+// lleguen los reales (esta lista llena el formulario y el filtro del dashboard).
+const EQUIPOS_DOM = ['Equipo 1','Equipo 2','Equipo 3','Equipo 4','Equipo 5'];
 let chPga = null, chM3Pga = null, chHist = null;
+let chDomProb = null, chDomEquipo = null, chDomEstado = null, chDomHist = null, chDomAccion = null;
+let _domLat = null, _domLng = null;  // geolocalización del celular (opcional)
 
 // ── API helpers ────────────────────────────────────────────────
 async function api(path, opts={}) {
@@ -580,7 +783,7 @@ function closeSidebar() {
 
 function goTo(page, btn) {
   // El rol captura no navega a las vistas de análisis (el backend las protege igual)
-  if (ROL !== 'admin' && (page === 'dashboard' || page === 'historial')) return;
+  if (ROL !== 'admin' && (page === 'dashboard' || page === 'historial' || page === 'domicilios-hist')) return;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
@@ -592,6 +795,10 @@ function goTo(page, btn) {
     else renderDashboard();
   }
   if (page === 'historial') renderHistorial();
+  if (page === 'domicilios-hist') renderDomicilios();
+  if (page === 'domicilio' && !document.getElementById('dom-fecha').value) {
+    document.getElementById('dom-fecha').value = todayStr();
+  }
 }
 
 // ── PGA Buttons ────────────────────────────────────────────────
@@ -801,6 +1008,8 @@ async function updateNavBadges() {
     const b = await api('/api/badges?fecha=' + todayStr());
     document.getElementById('nav-badge-in').textContent  = b.ent;
     document.getElementById('nav-badge-out').textContent = b.sal;
+    const bd = document.getElementById('nav-badge-dom');
+    if (bd) bd.textContent = b.dom || 0;
   } catch(e) {}
 }
 
@@ -816,7 +1025,323 @@ async function initRol() {
     const navHist = document.querySelector('button[onclick*="historial"]');
     if (navDash) navDash.style.display = 'none';
     if (navHist) navHist.style.display = 'none';
+    const navDomHist = document.querySelector('button[onclick*="domicilios-hist"]');
+    if (navDomHist) navDomHist.style.display = 'none';
   }
+}
+
+// ── Domicilios (control de predios) ────────────────────────────
+// Constructor genérico de opciones (reutiliza el estilo .pga-btn).
+// multi=true permite marcar varias; multi=false es selección única.
+function buildOpts(id, values, multi) {
+  const c = document.getElementById(id);
+  c.dataset.multi = multi ? '1' : '';
+  c.innerHTML = values.map(v =>
+    '<button type="button" class="pga-btn" data-val="' + escHtml(v) + '">' + escHtml(v) + '</button>'
+  ).join('');
+  c.addEventListener('click', function(e) {
+    const btn = e.target.closest('.pga-btn');
+    if (!btn) return;
+    if (c.dataset.multi) {
+      btn.classList.toggle('sel');           // varias opciones
+    } else {
+      c.querySelectorAll('.pga-btn').forEach(b => b.classList.remove('sel'));
+      btn.classList.add('sel');              // una sola
+    }
+    if (id === 'dom-uso') toggleComercio();
+  });
+}
+function getOpt(id) {
+  const s = document.querySelector('#' + id + ' .pga-btn.sel');
+  return s ? s.dataset.val : '';
+}
+function getOpts(id) {
+  return Array.from(document.querySelectorAll('#' + id + ' .pga-btn.sel')).map(b => b.dataset.val);
+}
+
+// ── Geolocalización (GPS del celular) ──────────────────────────
+function obtenerUbicacion() {
+  const txt = document.getElementById('dom-geo-text');
+  const link = document.getElementById('dom-geo-link');
+  if (!navigator.geolocation) { txt.textContent = 'Este dispositivo no permite geolocalización.'; return; }
+  txt.textContent = 'Obteniendo ubicación...';
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      _domLat = +pos.coords.latitude.toFixed(6);
+      _domLng = +pos.coords.longitude.toFixed(6);
+      txt.textContent = _domLat + ', ' + _domLng;
+      link.href = 'https://www.google.com/maps?q=' + _domLat + ',' + _domLng;
+      link.style.display = '';
+    },
+    err => {
+      txt.textContent = (err.code === 1)
+        ? 'Permiso de ubicación denegado.'
+        : 'No se pudo obtener la ubicación.';
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
+// El nombre del comercio solo aplica (y es obligatorio) cuando el uso es Comercial.
+function toggleComercio() {
+  const w = document.getElementById('dom-comercio-wrap');
+  if (getOpt('dom-uso') === 'Comercial') {
+    w.style.display = '';
+  } else {
+    w.style.display = 'none';
+    document.getElementById('dom-comercio').value = '';
+  }
+}
+// Fotos comprimidas (data URLs) pendientes de enviar. Máximo 2.
+let _domFotos = [];
+function comprimirImagen(file, maxDim, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      if (w >= h && w > maxDim)      { h = Math.round(h * maxDim / w); w = maxDim; }
+      else if (h > w && h > maxDim)  { w = Math.round(w * maxDim / h); h = maxDim; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('img')); };
+    img.src = url;
+  });
+}
+function onFotosSeleccionadas(input) {
+  const files = Array.from(input.files || []);
+  input.value = '';  // permite volver a elegir el mismo archivo
+  files.forEach(f => {
+    if (!f.type || !f.type.startsWith('image/')) return;
+    if (_domFotos.length >= 2) { toast('Máximo 2 fotografías.'); return; }
+    comprimirImagen(f, 1280, 0.7).then(dataUrl => {
+      if (_domFotos.length >= 2) { toast('Máximo 2 fotografías.'); return; }
+      _domFotos.push(dataUrl);
+      renderFotosPreview();
+    }).catch(() => toast('No se pudo procesar una imagen.'));
+  });
+}
+function renderFotosPreview() {
+  const c = document.getElementById('dom-fotos-preview');
+  c.innerHTML = _domFotos.map((src, i) =>
+    '<div style="position:relative;width:96px;height:96px;border-radius:8px;overflow:hidden;border:1px solid var(--border,#ddd)">' +
+      '<img src="' + src + '" style="width:100%;height:100%;object-fit:cover"/>' +
+      '<button type="button" onclick="quitarFoto(' + i + ')" title="Quitar" ' +
+      'style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;' +
+      'border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:14px;line-height:1">&times;</button>' +
+    '</div>'
+  ).join('');
+}
+function quitarFoto(i) { _domFotos.splice(i, 1); renderFotosPreview(); }
+
+function limpiarDom() {
+  document.getElementById('dom-direccion').value = '';
+  document.getElementById('dom-comercio').value = '';
+  document.getElementById('dom-folio-acta').value = '';
+  document.getElementById('dom-obs').value = '';
+  document.getElementById('dom-obs-ctr').textContent = '0/300';
+  document.getElementById('dom-equipo').value = '';
+  document.getElementById('dom-plazo').value = '';
+  ['dom-uso','dom-estado','dom-problematica','dom-accion'].forEach(id =>
+    document.querySelectorAll('#' + id + ' .pga-btn').forEach(b => b.classList.remove('sel')));
+  document.getElementById('dom-comercio-wrap').style.display = 'none';
+  _domFotos = [];
+  renderFotosPreview();
+  _domLat = null; _domLng = null;
+  document.getElementById('dom-geo-text').textContent = 'Sin ubicación';
+  document.getElementById('dom-geo-link').style.display = 'none';
+  document.getElementById('dom-fecha').value = todayStr();
+}
+async function registrarDomicilio() {
+  const fecha        = document.getElementById('dom-fecha').value;
+  const direccion    = document.getElementById('dom-direccion').value.trim();
+  const uso          = getOpt('dom-uso');
+  const estado       = getOpt('dom-estado');
+  const problematica = getOpts('dom-problematica');   // varias opciones
+  const accion       = getOpt('dom-accion');
+  const comercio     = document.getElementById('dom-comercio').value.trim();
+  const folioActa    = document.getElementById('dom-folio-acta').value.trim();
+  const equipo       = document.getElementById('dom-equipo').value;
+  const plazo        = document.getElementById('dom-plazo').value;
+  const obs          = document.getElementById('dom-obs').value.trim();
+  if (!fecha)     { toast('La fecha de inspección es obligatoria.'); return; }
+  if (!direccion) { toast('La dirección es obligatoria.'); return; }
+  if (!uso)       { toast('Selecciona el uso del predio.'); return; }
+  if (uso === 'Comercial' && !comercio) { toast('Escribe el nombre del comercio.'); return; }
+  const btn = document.getElementById('btn-registrar-dom');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Guardando...';
+  try {
+    const res = await api('/api/domicilios', {
+      method: 'POST',
+      timeoutMs: 30000,  // más margen: puede incluir fotos
+      body: JSON.stringify({
+        fecha, direccion, uso,
+        nombre_comercio: comercio,
+        folio_acta: folioActa,
+        estado, problematica, accion, equipo,
+        plazo_horas: plazo,
+        lat: _domLat, lng: _domLng,
+        obs,
+        fotos: _domFotos
+      })
+    });
+    limpiarDom();
+    toast('Domicilio ' + res.folio + ' registrado.');
+    updateNavBadges();
+    btn.innerHTML = 'Registrar domicilio';
+  } catch(e) {
+    toast(e.message === 'TIMEOUT'
+      ? 'Tiempo de espera agotado. Verifica tu conexión y presiona Reintentar.'
+      : 'Error al guardar. ' + (e.message || 'Verifica la conexión.'));
+    btn.innerHTML = 'Reintentar';
+  } finally {
+    btn.disabled = false;
+  }
+}
+async function renderDomicilios() {
+  const body = document.getElementById('dom-body');
+  try {
+    const rows = await api('/api/domicilios');
+    document.getElementById('dom-count').textContent =
+      rows.length + ' domicilio' + (rows.length === 1 ? '' : 's');
+    body.innerHTML = rows.map(filaDom).join('') ||
+      '<tr><td colspan="16" style="text-align:center;color:var(--text2);padding:20px">Sin domicilios registrados</td></tr>';
+  } catch(e) {
+    body.innerHTML =
+      '<tr><td colspan="16" style="text-align:center;color:var(--text2);padding:20px">No se pudo cargar. ' +
+      escHtml(e.message) + '</td></tr>';
+  }
+}
+function filaDom(r) {
+  const btnDel = (ROL === 'admin')
+    ? '<button class="btn btn-ghost" style="padding:3px 10px;font-size:11px" onclick="eliminarDomicilio(' + r.id + ')">Eliminar</button>'
+    : '—';
+  const pdf = r.has_pdf
+    ? '<a class="btn btn-ghost" style="padding:3px 10px;font-size:11px" href="/api/domicilios/' + r.id + '/pdf">Descargar</a>'
+    : '<span style="color:var(--text2)">—</span>';
+  const ubic = (r.lat != null && r.lng != null)
+    ? '<a href="https://www.google.com/maps?q=' + r.lat + ',' + r.lng + '" target="_blank" rel="noopener">Ver mapa</a>'
+    : '<span style="color:var(--text2)">—</span>';
+  let plazo = '—';
+  if (r.plazo_horas === 0) plazo = 'El mismo día';
+  else if (r.plazo_horas) plazo = r.plazo_horas + ' h';
+  if (r.fecha_limite) plazo += '<br><span style="font-size:11px;color:var(--text2)">' + escHtml(r.fecha_limite) + '</span>';
+  return '<tr>' +
+    '<td>' + r.id + '</td>' +
+    '<td>' + escHtml(r.folio) + '</td>' +
+    '<td>' + escHtml(r.folio_acta || '') + '</td>' +
+    '<td>' + fechaDisplay(r.fecha) + '</td>' +
+    '<td>' + escHtml(r.direccion || '') + '</td>' +
+    '<td>' + escHtml(r.uso || '') + '</td>' +
+    '<td>' + escHtml(r.nombre_comercio || '') + '</td>' +
+    '<td>' + escHtml(r.estado || '') + '</td>' +
+    '<td>' + escHtml(r.problematica || '') + '</td>' +
+    '<td>' + escHtml(r.accion || '') + '</td>' +
+    '<td>' + escHtml(r.equipo || '') + '</td>' +
+    '<td>' + plazo + '</td>' +
+    '<td>' + escHtml(r.obs || '') + '</td>' +
+    '<td>' + ubic + '</td>' +
+    '<td>' + pdf + '</td>' +
+    '<td>' + btnDel + '</td>' +
+    '</tr>';
+}
+async function eliminarDomicilio(id) {
+  if (!confirm('¿Eliminar este domicilio? Esta acción no se puede deshacer.')) return;
+  try {
+    await api('/api/domicilios/' + id, { method: 'DELETE' });
+    toast('Domicilio eliminado.');
+    renderDomicilios();
+  } catch(e) {
+    toast('No se pudo eliminar. ' + (e.message || ''));
+  }
+}
+function exportarExcelDom() { window.location.href = '/api/export/excel/domicilios'; }
+
+// ── Dashboard de domicilios (sub-pestaña) ──────────────────────
+const DOM_COLORS = ['#1a6fc4','#27ae60','#e67e22','#8b5cf6','#e74c3c','#16a085','#f1c40f'];
+function dashSub(which) {
+  document.querySelectorAll('.dash-sub').forEach(s => s.classList.remove('active'));
+  const sub = document.getElementById('dash-sub-' + which);
+  if (sub) sub.classList.add('active');
+  document.getElementById('subtab-viajes').className = 'btn ' + (which === 'viajes' ? 'btn-primary' : 'btn-ghost');
+  document.getElementById('subtab-domicilios').className = 'btn ' + (which === 'domicilios' ? 'btn-primary' : 'btn-ghost');
+  if (which === 'domicilios') {
+    if (!document.getElementById('dd-desde').value) setRapidoDom('hoy');
+    else renderDashDomicilios();
+  }
+}
+function setRapidoDom(tipo) {
+  const r = rangoRapido(tipo);
+  if (!r) return;
+  document.getElementById('dd-desde').value = r.desde;
+  document.getElementById('dd-hasta').value = r.hasta;
+  renderDashDomicilios();
+}
+function _chartDom(canvasId, prev, cfg) {
+  if (prev) prev.destroy();
+  return new Chart(document.getElementById(canvasId), cfg);
+}
+function _barCfg(labels, values, color) {
+  return {
+    type: 'bar',
+    data: { labels, datasets: [{ data: values, backgroundColor: color }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  };
+}
+async function renderDashDomicilios() {
+  const desde = document.getElementById('dd-desde').value || todayStr();
+  const hasta = document.getElementById('dd-hasta').value || todayStr();
+  if (desde > hasta) { toast('La fecha "Desde" debe ser anterior o igual a "Hasta".'); return; }
+  const equipo = document.getElementById('dd-equipo').value;
+  let data;
+  try {
+    data = await api('/api/dashboard/domicilios?desde=' + desde + '&hasta=' + hasta +
+      (equipo ? '&equipo=' + encodeURIComponent(equipo) : ''));
+  } catch(e) {
+    toast('No se pudo cargar el dashboard de domicilios.');
+    return;
+  }
+  document.getElementById('dd-total').textContent        = data.total;
+  document.getElementById('dd-comercial').textContent    = data.por_uso['Comercial'] || 0;
+  document.getElementById('dd-habitacional').textContent = data.por_uso['Habitacional'] || 0;
+  document.getElementById('dd-baldio').textContent       = data.por_estado['Baldío'] || 0;
+
+  chDomProb = _chartDom('ch-dom-prob', chDomProb,
+    _barCfg(data.por_problematica.map(x => x.k), data.por_problematica.map(x => x.c), '#8b5cf6'));
+  chDomEquipo = _chartDom('ch-dom-equipo', chDomEquipo,
+    _barCfg(data.por_equipo.map(x => x.k), data.por_equipo.map(x => x.c), '#1a6fc4'));
+
+  const estK = Object.keys(data.por_estado), estV = estK.map(k => data.por_estado[k]);
+  chDomEstado = _chartDom('ch-dom-estado', chDomEstado, {
+    type: 'doughnut',
+    data: { labels: estK, datasets: [{ data: estV,
+      backgroundColor: estK.map((_, i) => DOM_COLORS[i % DOM_COLORS.length]) }] },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+
+  const accK = Object.keys(data.por_accion || {}), accV = accK.map(k => data.por_accion[k]);
+  chDomAccion = _chartDom('ch-dom-accion', chDomAccion, {
+    type: 'doughnut',
+    data: { labels: accK, datasets: [{ data: accV,
+      backgroundColor: accK.map((_, i) => DOM_COLORS[i % DOM_COLORS.length]) }] },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+
+  chDomHist = _chartDom('ch-dom-hist', chDomHist, {
+    type: 'line',
+    data: { labels: data.historial.map(x => fechaDisplay(x.fecha)),
+      datasets: [{ data: data.historial.map(x => x.c), label: 'Domicilios',
+        borderColor: '#1a6fc4', backgroundColor: 'rgba(26,111,196,.15)', fill: true, tension: .3 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
 }
 
 // ── Dashboard ──────────────────────────────────────────────────
@@ -1269,6 +1794,15 @@ async function cerrarSesion() {
 // ── Init ───────────────────────────────────────────────────────
 buildPga('pga-sel-e');
 buildPga('pga-sel-s');
+buildOpts('dom-uso', ['Comercial','Habitacional']);
+buildOpts('dom-estado', ['Habitado','Deshabitado','Baldío']);
+buildOpts('dom-problematica', ['Escombro','Basura','Deshierbe','Desecho Vegetal','Poda de Árboles','Vehículo Chatarra'], true);
+buildOpts('dom-accion', ['Notificado','Amonestado','Multado']);
+document.getElementById('dom-fecha').value = todayStr();
+document.getElementById('dom-equipo').innerHTML =
+  '<option value="">— Seleccionar —</option>' + EQUIPOS_DOM.map(e => '<option>' + e + '</option>').join('');
+document.getElementById('dd-equipo').innerHTML =
+  '<option value="">Todos los equipos</option>' + EQUIPOS_DOM.map(e => '<option>' + e + '</option>').join('');
 autoNow('e-fecha','e-hora');
 autoNow('s-fecha','s-hora');
 updateNavBadges();

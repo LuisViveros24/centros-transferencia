@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, render_template, send_file, Response, g, make_response
 import psycopg2
 import psycopg2.extras
-import os, io, re, hmac
+import os, io, re, hmac, base64, math
 from datetime import datetime, date
 from functools import wraps
 
@@ -69,8 +69,37 @@ def init_db():
                         creado_en    TIMESTAMP DEFAULT NOW()
                     )
                 ''')
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS domicilios (
+                        id              SERIAL PRIMARY KEY,
+                        folio           TEXT NOT NULL,
+                        folio_acta      TEXT,
+                        fecha           DATE NOT NULL,
+                        direccion       TEXT,
+                        uso             TEXT,
+                        nombre_comercio TEXT,
+                        estado          TEXT,
+                        problematica    TEXT,
+                        accion          TEXT,
+                        equipo          TEXT,
+                        plazo_horas     INTEGER,
+                        lat             REAL,
+                        lng             REAL,
+                        obs             TEXT,
+                        foto_pdf        BYTEA,
+                        creado_en       TIMESTAMP DEFAULT NOW()
+                    )
+                ''')
+                for _col, _tipo in (('folio_acta','TEXT'), ('accion','TEXT'),
+                                    ('equipo','TEXT'), ('plazo_horas','INTEGER'),
+                                    ('lat','REAL'), ('lng','REAL'),
+                                    ('obs','TEXT'), ('foto_pdf','BYTEA')):
+                    cur.execute(f'ALTER TABLE domicilios ADD COLUMN IF NOT EXISTS {_col} {_tipo}')
                 cur.execute(
                     "INSERT INTO config VALUES ('folio_base','1') ON CONFLICT DO NOTHING"
+                )
+                cur.execute(
+                    "INSERT INTO config VALUES ('folio_dom','1') ON CONFLICT DO NOTHING"
                 )
     finally:
         conn.close()
@@ -144,6 +173,22 @@ def next_folio(tipo, cur):
     )
     return folio
 
+def next_folio_dom(cur):
+    """Siguiente folio de domicilios (prefijo DOM-). Debe llamarse dentro de la
+    misma transacción que el INSERT, para mantener el lock del SELECT FOR UPDATE."""
+    cur.execute(
+        "SELECT valor FROM config WHERE clave='folio_dom' FOR UPDATE"
+    )
+    row = cur.fetchone()
+    if row is None:
+        raise RuntimeError("Falta la fila 'folio_dom' en la tabla config")
+    n = int(row['valor'])
+    folio = 'DOM-' + str(n).zfill(4)
+    cur.execute(
+        "UPDATE config SET valor=%s WHERE clave='folio_dom'", (n + 1,)
+    )
+    return folio
+
 # ── Rutas ──────────────────────────────────────────────────────
 @app.route('/')
 @requiere_auth
@@ -193,9 +238,12 @@ def badges():
                 cur.execute(
                     "SELECT COUNT(*) c FROM registros WHERE fecha=%s AND tipo='SALIDA'", [fecha])
                 sal = cur.fetchone()['c']
+                cur.execute(
+                    "SELECT COUNT(*) c FROM domicilios WHERE fecha=%s", [fecha])
+                dom = cur.fetchone()['c']
     finally:
         conn.close()
-    return jsonify({'ent': ent, 'sal': sal})
+    return jsonify({'ent': ent, 'sal': sal, 'dom': dom})
 
 @app.route('/api/registros', methods=['GET'])
 @requiere_admin
@@ -315,6 +363,404 @@ def eliminar_registro(rid):
     finally:
         conn.close()
     return jsonify({'ok': True})
+
+# ── Domicilios (control de predios) ────────────────────────────
+# Catálogos de referencia. Se pueden ampliar/editar libremente; el backend
+# no restringe los valores (para facilitar cambios futuros sin migración).
+USOS_PREDIO    = ('Comercial', 'Habitacional')
+ESTADOS_PREDIO = ('Habitado', 'Deshabitado', 'Baldío')
+PROBLEMATICAS  = ('Escombro', 'Basura', 'Deshierbe', 'Desecho Vegetal',
+                  'Poda de Árboles', 'Vehículo Chatarra')
+ACCIONES       = ('Notificado', 'Amonestado', 'Multado')
+# Equipos de captura: nombres provisionales; se editarán cuando lleguen los reales.
+EQUIPOS        = ('Equipo 1', 'Equipo 2', 'Equipo 3', 'Equipo 4', 'Equipo 5')
+MAX_FOTOS      = 2                     # fotos por domicilio
+MAX_FOTO_BYTES = 5 * 1024 * 1024       # 5 MB por foto (ya comprimida en el cliente)
+
+def _fecha_limite(fecha, plazo_horas):
+    """datetime límite = fecha de inspección + plazo. plazo_horas=0 significa
+    'el mismo día' (vence a las 23:59 del día de inspección). None si no aplica."""
+    if plazo_horas is None:
+        return None
+    try:
+        ph = int(plazo_horas)
+    except (ValueError, TypeError):
+        return None
+    from datetime import timedelta
+    base = datetime.combine(fecha, datetime.min.time()) if isinstance(fecha, date) \
+        else datetime.strptime(str(fecha), '%Y-%m-%d')
+    if ph == 0:
+        return base.replace(hour=23, minute=59)
+    return base + timedelta(hours=ph)
+
+def _plazo_texto(plazo_horas):
+    """Texto legible del plazo para PDF/Excel."""
+    if plazo_horas is None:
+        return ''
+    if plazo_horas == 0:
+        return 'El mismo día'
+    return f'{plazo_horas} horas'
+
+def _fotos_a_pdf(fotos_dec, meta_lines):
+    """Genera un PDF (bytes) con una portada de datos + una página por foto."""
+    from PIL import Image, ImageDraw, ImageFont
+    W, H = 1240, 1754  # ~A4 a 150 dpi
+    cover = Image.new('RGB', (W, H), 'white')
+    draw = ImageDraw.Draw(cover)
+    try:
+        f_title = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 46)
+        f_body  = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 32)
+    except Exception:
+        f_title = ImageFont.load_default()
+        f_body  = ImageFont.load_default()
+    draw.text((80, 80), 'Control de domicilios', font=f_title, fill='black')
+    y = 180
+    for line in meta_lines:
+        draw.text((80, y), line, font=f_body, fill='black')
+        y += 52
+    pages = [cover]
+    for _mime, raw in fotos_dec:
+        try:
+            im = Image.open(io.BytesIO(raw)).convert('RGB')
+            pages.append(im)
+        except Exception:
+            continue
+    buf = io.BytesIO()
+    pages[0].save(buf, format='PDF', save_all=True,
+                  append_images=pages[1:] if len(pages) > 1 else [])
+    buf.seek(0)
+    return buf.read()
+
+def _decode_data_url(s):
+    """Convierte 'data:image/jpeg;base64,AAAA' en (mime, bytes). Devuelve (None, None) si falla."""
+    if not s or not isinstance(s, str) or ',' not in s:
+        return None, None
+    header, b64 = s.split(',', 1)
+    mime = 'image/jpeg'
+    m = re.match(r'data:([^;]+);base64', header)
+    if m:
+        mime = m.group(1)
+    if mime not in ('image/jpeg', 'image/png', 'image/webp'):
+        return None, None
+    try:
+        raw = base64.b64decode(b64)
+    except Exception:
+        return None, None
+    if not raw or len(raw) > MAX_FOTO_BYTES:
+        return None, None
+    return mime, raw
+
+@app.route('/api/domicilios', methods=['GET'])
+@requiere_admin
+def get_domicilios():
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # No devolvemos foto_pdf (bytea pesado); solo si existe.
+                cur.execute("""
+                    SELECT id, folio, folio_acta, fecha, direccion, uso, nombre_comercio,
+                           estado, problematica, accion, equipo, plazo_horas, lat, lng, obs,
+                           (foto_pdf IS NOT NULL) AS has_pdf, creado_en
+                    FROM domicilios ORDER BY id DESC
+                """)
+                rows = cur.fetchall()
+    finally:
+        conn.close()
+    out = []
+    for r in rows:
+        row = dict(r)
+        lim = _fecha_limite(r['fecha'], r.get('plazo_horas'))
+        row['fecha_limite'] = lim.strftime('%Y-%m-%d %H:%M') if lim else ''
+        out.append(row)
+    return jsonify(out)
+
+@app.route('/api/domicilios', methods=['POST'])
+@requiere_auth
+def crear_domicilio():
+    d = request.get_json()
+    if not d:
+        return jsonify({'error': 'JSON requerido'}), 400
+
+    fecha = d.get('fecha') or str(date.today())
+    try:
+        datetime.strptime(fecha, '%Y-%m-%d')
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Formato de fecha inválido. Use YYYY-MM-DD'}), 400
+
+    direccion = (d.get('direccion') or '').strip()
+    if not direccion:
+        return jsonify({'error': 'La dirección es obligatoria.'}), 400
+
+    uso = (d.get('uso') or '').strip()
+    if uso not in USOS_PREDIO:
+        return jsonify({'error': 'Selecciona el uso del predio (Comercial o Habitacional).'}), 400
+
+    nombre_comercio = (d.get('nombre_comercio') or '').strip()
+    if uso == 'Comercial' and not nombre_comercio:
+        return jsonify({'error': 'Para uso Comercial, el nombre del comercio es obligatorio.'}), 400
+    if uso != 'Comercial':
+        nombre_comercio = ''  # solo aplica a comercios
+
+    estado       = (d.get('estado') or '').strip()
+    equipo       = (d.get('equipo') or '').strip()
+    accion       = (d.get('accion') or '').strip()
+    folio_acta   = (d.get('folio_acta') or '').strip()
+    obs          = (d.get('obs') or '').strip()
+
+    # Problemática: puede venir como lista (selección múltiple) o texto.
+    prob_in = d.get('problematica')
+    if isinstance(prob_in, list):
+        problematica = ', '.join(str(p).strip() for p in prob_in if str(p).strip())
+    else:
+        problematica = (prob_in or '').strip()
+
+    # Coordenadas (geolocalización del celular), opcionales.
+    def _num(v):
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            return None
+    lat = _num(d.get('lat'))
+    lng = _num(d.get('lng'))
+
+    plazo_horas = d.get('plazo_horas')
+    if plazo_horas in ('', None):
+        plazo_horas = None
+    else:
+        try:
+            plazo_horas = int(plazo_horas)   # 0 = el mismo día
+            if plazo_horas < 0:
+                plazo_horas = None
+        except (ValueError, TypeError):
+            return jsonify({'error': 'El plazo debe ser un número entero de horas (o 0 = el mismo día).'}), 400
+
+    # Fotos: lista de data URLs (base64). Opcionales, máximo MAX_FOTOS.
+    fotos_in = d.get('fotos') or []
+    if not isinstance(fotos_in, list):
+        fotos_in = []
+    if len(fotos_in) > MAX_FOTOS:
+        return jsonify({'error': f'Máximo {MAX_FOTOS} fotografías por domicilio.'}), 400
+    fotos_dec = []
+    for s in fotos_in:
+        mime, raw = _decode_data_url(s)
+        if raw is None:
+            return jsonify({'error': 'Una de las fotografías no es válida o excede el tamaño permitido.'}), 400
+        fotos_dec.append((mime, raw))
+
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                folio = next_folio_dom(cur)
+                # Generar el PDF de fotos (con portada de datos) al momento de capturar.
+                foto_pdf = None
+                if fotos_dec:
+                    coords = f'{lat}, {lng}' if (lat is not None and lng is not None) else '—'
+                    meta = [
+                        f'Folio captura: {folio}',
+                        f'Folio acta física: {folio_acta or "—"}',
+                        f'Fecha inspección: {fecha}',
+                        f'Dirección: {direccion}',
+                        f'Uso: {uso}' + (f' — {nombre_comercio}' if nombre_comercio else ''),
+                        f'Estado: {estado or "—"}',
+                        f'Problemática: {problematica or "—"}',
+                        f'Acción: {accion or "—"}',
+                        f'Equipo: {equipo or "—"}',
+                        f'Plazo: {_plazo_texto(plazo_horas) or "—"}',
+                        f'Ubicación (lat, lng): {coords}',
+                    ]
+                    try:
+                        foto_pdf = _fotos_a_pdf(fotos_dec, meta)
+                    except Exception:
+                        foto_pdf = None  # si algo falla con el PDF, no impedimos el registro
+                cur.execute('''
+                    INSERT INTO domicilios
+                    (folio,folio_acta,fecha,direccion,uso,nombre_comercio,estado,problematica,
+                     accion,equipo,plazo_horas,lat,lng,obs,foto_pdf)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+                ''', (folio, folio_acta, fecha, direccion, uso, nombre_comercio, estado,
+                      problematica, accion, equipo, plazo_horas, lat, lng, obs,
+                      psycopg2.Binary(foto_pdf) if foto_pdf else None))
+                dom_id = cur.fetchone()['id']
+    finally:
+        conn.close()
+    return jsonify({'ok': True, 'folio': folio, 'id': dom_id}), 201
+
+@app.route('/api/domicilios/<int:rid>/pdf', methods=['GET'])
+@requiere_admin
+def get_domicilio_pdf(rid):
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT folio, foto_pdf FROM domicilios WHERE id=%s", (rid,))
+                row = cur.fetchone()
+    finally:
+        conn.close()
+    if not row or not row['foto_pdf']:
+        return jsonify({'error': 'Este domicilio no tiene fotografías.'}), 404
+    data = row['foto_pdf']
+    if isinstance(data, memoryview):
+        data = data.tobytes()
+    return send_file(io.BytesIO(bytes(data)), as_attachment=True,
+                     download_name=f"{row['folio']}_fotos.pdf",
+                     mimetype='application/pdf')
+
+@app.route('/api/domicilios/<int:rid>', methods=['DELETE'])
+@requiere_admin
+def eliminar_domicilio(rid):
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM domicilios WHERE id=%s", (rid,))
+                if cur.rowcount == 0:
+                    return jsonify({'error': 'Domicilio no encontrado'}), 404
+                # Recalcular folio_dom al número más alto existente + 1 (o 1 si no quedan)
+                cur.execute("""
+                    UPDATE config SET valor = (
+                        SELECT COALESCE(MAX(SUBSTRING(folio FROM 5)::INTEGER), 0) + 1
+                        FROM domicilios
+                    ) WHERE clave = 'folio_dom'
+                """)
+    finally:
+        conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/dashboard/domicilios', methods=['GET'])
+@requiere_admin
+def dashboard_domicilios():
+    _today = str(date.today())
+    desde = request.args.get('desde', _today)
+    hasta = request.args.get('hasta', _today)
+    for _s in (desde, hasta):
+        try:
+            datetime.strptime(_s, '%Y-%m-%d')
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Formato de fecha inválido. Use YYYY-MM-DD'}), 400
+    if desde > hasta:
+        return jsonify({'error': 'desde debe ser anterior o igual a hasta'}), 400
+    equipo_filtro = request.args.get('equipo', '').strip()
+
+    base_where = " WHERE fecha BETWEEN %s AND %s"
+    params = [desde, hasta]
+    if equipo_filtro:
+        base_where += " AND equipo = %s"
+        params.append(equipo_filtro)
+
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                def qa(sql, p=None):
+                    cur.execute(sql, p or [])
+                    return cur.fetchall()
+                def q1(sql, p=None):
+                    cur.execute(sql, p or [])
+                    return cur.fetchone()
+
+                total = q1("SELECT COUNT(*) c FROM domicilios" + base_where, params)['c']
+
+                por_uso = {r['k']: r['c'] for r in qa(
+                    "SELECT COALESCE(NULLIF(TRIM(uso),''),'—') k, COUNT(*) c FROM domicilios"
+                    + base_where + " GROUP BY 1", params)}
+                por_estado = {r['k']: r['c'] for r in qa(
+                    "SELECT COALESCE(NULLIF(TRIM(estado),''),'—') k, COUNT(*) c FROM domicilios"
+                    + base_where + " GROUP BY 1", params)}
+                por_accion = {r['k']: r['c'] for r in qa(
+                    "SELECT COALESCE(NULLIF(TRIM(accion),''),'—') k, COUNT(*) c FROM domicilios"
+                    + base_where + " GROUP BY 1", params)}
+                por_equipo = [{'k': r['k'], 'c': r['c']} for r in qa(
+                    "SELECT COALESCE(NULLIF(TRIM(equipo),''),'—') k, COUNT(*) c FROM domicilios"
+                    + base_where + " GROUP BY 1 ORDER BY c DESC", params)]
+                hist = [dict(r) for r in qa(
+                    "SELECT fecha, COUNT(*) c FROM domicilios" + base_where
+                    + " GROUP BY fecha ORDER BY fecha", params)]
+                # Problemática puede tener varias opciones por domicilio (separadas por coma):
+                # se cuentan por separado.
+                prob_rows = qa("SELECT problematica FROM domicilios" + base_where, params)
+    finally:
+        conn.close()
+
+    prob_counts = {}
+    for r in prob_rows:
+        for p in (r['problematica'] or '').split(','):
+            p = p.strip()
+            if p:
+                prob_counts[p] = prob_counts.get(p, 0) + 1
+    por_problematica = sorted(
+        [{'k': k, 'c': v} for k, v in prob_counts.items()],
+        key=lambda x: -x['c'])
+
+    return jsonify({
+        'total': total,
+        'por_uso': por_uso,
+        'por_estado': por_estado,
+        'por_problematica': por_problematica,
+        'por_accion': por_accion,
+        'por_equipo': por_equipo,
+        'historial': hist,
+        'equipos': list(EQUIPOS),
+    })
+
+@app.route('/api/export/excel/domicilios', methods=['GET'])
+@requiere_admin
+def export_excel_domicilios():
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+    except ImportError:
+        return jsonify({'error': 'openpyxl no instalado'}), 500
+
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT id, folio, folio_acta, fecha, direccion, uso, nombre_comercio,
+                           estado, problematica, accion, equipo, plazo_horas, lat, lng, obs,
+                           (foto_pdf IS NOT NULL) AS has_pdf, creado_en
+                    FROM domicilios ORDER BY id DESC
+                """)
+                rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Domicilios'
+    headers = ['ID', 'Folio captura', 'Folio acta física', 'Fecha', 'Dirección',
+               'Uso del predio', 'Nombre del comercio', 'Estado del predio',
+               'Problemática', 'Acción', 'Equipo', 'Plazo', 'Fecha límite',
+               'Ubicación (lat, lng)', 'Fotos (PDF)', 'Observaciones', 'Registrado']
+    header_fill = PatternFill(fill_type='solid', fgColor='1a6fc4')
+    header_font = Font(bold=True, color='FFFFFF')
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center')
+    for row in rows:
+        lim = _fecha_limite(row['fecha'], row.get('plazo_horas'))
+        coords = f"{row['lat']}, {row['lng']}" if (row.get('lat') is not None and row.get('lng') is not None) else ''
+        ws.append([
+            row['id'], row['folio'], row.get('folio_acta', ''), row['fecha'], row['direccion'],
+            row['uso'], row.get('nombre_comercio', ''), row['estado'],
+            row['problematica'], row.get('accion', ''), row.get('equipo', ''),
+            _plazo_texto(row.get('plazo_horas')),
+            lim.strftime('%Y-%m-%d %H:%M') if lim else '', coords,
+            'Sí' if row.get('has_pdf') else 'No', row.get('obs', ''), row['creado_en']
+        ])
+    col_widths = [6, 12, 14, 12, 34, 16, 24, 18, 22, 14, 12, 14, 18, 22, 10, 30, 18]
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fname = f"Domicilios_{date.today()}.xlsx"
+    return send_file(buf, as_attachment=True, download_name=fname,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 def _colonias_para_mapa(rows):
     """Agrupa filas (norm, colonia, lat, lng, origen, c) por colonia:

@@ -74,9 +74,37 @@ try:
                     creado_en    TIMESTAMP DEFAULT NOW()
                 )
             ''')
+            print('Creando tabla domicilios (control de predios)...')
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS domicilios (
+                    id              SERIAL PRIMARY KEY,
+                    folio           TEXT NOT NULL,
+                    fecha           DATE NOT NULL,
+                    direccion       TEXT,
+                    uso             TEXT,
+                    nombre_comercio TEXT,
+                    estado          TEXT,
+                    problematica    TEXT,
+                    obs             TEXT,
+                    creado_en       TIMESTAMP DEFAULT NOW()
+                )
+            ''')
+            # Columnas agregables si la tabla domicilios ya existía sin ellas
+            # (facilita ampliar el formulario sin recrear la tabla).
+            for _col, _tipo in (('obs','TEXT'), ('nombre_comercio','TEXT'),
+                                ('equipo','TEXT'), ('plazo_horas','INTEGER'),
+                                ('folio_acta','TEXT'), ('accion','TEXT'),
+                                ('lat','REAL'), ('lng','REAL'),
+                                ('foto_pdf','BYTEA')):
+                print(f'  · columna domicilios.{_col}')
+                cur.execute(f'ALTER TABLE domicilios ADD COLUMN IF NOT EXISTS {_col} {_tipo}')
             print('Insertando contador de folio inicial...')
             cur.execute(
                 "INSERT INTO config VALUES ('folio_base', '1') ON CONFLICT DO NOTHING"
+            )
+            print('Insertando contador de folio de domicilios...')
+            cur.execute(
+                "INSERT INTO config VALUES ('folio_dom', '1') ON CONFLICT DO NOTHING"
             )
     print('\n✓ Esquema creado correctamente en PostgreSQL.')
     print('  Puedes hacer un Manual Deploy en Render ahora.')
