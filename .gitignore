@@ -4,3 +4,7 @@ __pycache__/
 .env
 .worktrees/
 .superpowers/
+
+# Respaldos de base de datos (nunca subir)
+respaldo_*.sql
+*.sql
