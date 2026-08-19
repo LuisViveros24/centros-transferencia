@@ -369,7 +369,7 @@ def eliminar_registro(rid):
 # no restringe los valores (para facilitar cambios futuros sin migración).
 USOS_PREDIO    = ('Comercial', 'Habitacional')
 ESTADOS_PREDIO = ('Habitado', 'Deshabitado', 'Baldío')
-PROBLEMATICAS  = ('Escombro', 'Basura', 'Deshierbe', 'Desecho Vegetal',
+PROBLEMATICAS  = ('Escombro', 'Basura', 'Enyerbado', 'Desecho Vegetal',
                   'Poda de Árboles', 'Vehículo Chatarra')
 ACCIONES       = ('Notificado', 'Amonestado', 'Multado')
 # Equipos de captura: nombres provisionales; se editarán cuando lleguen los reales.
