@@ -422,7 +422,7 @@ EQUIPOS        = (
 SQL_LIMITE = ("CASE WHEN plazo_horas IS NULL THEN NULL "
               "WHEN plazo_horas = 0 THEN (fecha::timestamp + interval '23 hours 59 minutes') "
               "ELSE (fecha::timestamp + make_interval(hours => plazo_horas)) END")
-MAX_FOTOS      = 2                     # fotos por domicilio
+MAX_FOTOS      = 5                     # fotos por domicilio
 MAX_FOTO_BYTES = 5 * 1024 * 1024       # 5 MB por foto (ya comprimida en el cliente)
 
 def _fecha_limite(fecha, plazo_horas):

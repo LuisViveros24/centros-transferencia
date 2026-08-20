@@ -687,7 +687,7 @@
         </div>
 
         <div class="field">
-          <label>Fotografías (opcionales, máximo 2 — se guardan como PDF descargable)</label>
+          <label>Fotografías (opcionales, máximo 5 — se guardan como PDF descargable)</label>
           <input type="file" id="dom-fotos-input" accept="image/*" capture="environment" multiple
                  onchange="onFotosSeleccionadas(this)"/>
           <div id="dom-fotos-preview" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px"></div>
@@ -1273,9 +1273,9 @@ function onFotosSeleccionadas(input) {
   input.value = '';  // permite volver a elegir el mismo archivo
   files.forEach(f => {
     if (!f.type || !f.type.startsWith('image/')) return;
-    if (_domFotos.length >= 2) { toast('Máximo 2 fotografías.'); return; }
+    if (_domFotos.length >= 5) { toast('Máximo 5 fotografías.'); return; }
     comprimirImagen(f, 1280, 0.7).then(dataUrl => {
-      if (_domFotos.length >= 2) { toast('Máximo 2 fotografías.'); return; }
+      if (_domFotos.length >= 5) { toast('Máximo 5 fotografías.'); return; }
       _domFotos.push(dataUrl);
       renderFotosPreview();
     }).catch(() => toast('No se pudo procesar una imagen.'));
