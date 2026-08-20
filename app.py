@@ -16,6 +16,10 @@ AUTH_PASS    = os.environ.get('AUTH_PASS')
 # (migración segura: el deploy no rompe nada antes de configurarlas en Render).
 ADMIN_USER   = os.environ.get('ADMIN_USER')
 ADMIN_PASS   = os.environ.get('ADMIN_PASS')
+# Rol de solo lectura (tablero para dirección/jefe). Si no se configuran,
+# el rol viewer simplemente no existe (nadie puede entrar como viewer).
+VIEWER_USER  = os.environ.get('VIEWER_USER')
+VIEWER_PASS  = os.environ.get('VIEWER_PASS')
 
 if not DATABASE_URL:
     raise RuntimeError('Falta la variable de entorno DATABASE_URL')
@@ -116,9 +120,11 @@ def _cred_ok(auth, exp_user, exp_pass):
     return eq(auth.username, exp_user) and eq(auth.password, exp_pass)
 
 def _rol_de(auth):
-    """'admin', 'captura' o None según las credenciales recibidas."""
+    """'admin', 'viewer', 'captura' o None según las credenciales recibidas."""
     if _cred_ok(auth, ADMIN_USER, ADMIN_PASS):
         return 'admin'
+    if _cred_ok(auth, VIEWER_USER, VIEWER_PASS):
+        return 'viewer'
     if _cred_ok(auth, AUTH_USER, AUTH_PASS):
         # Sin admin configurado, el usuario de captura conserva acceso total
         return 'captura' if (ADMIN_USER and ADMIN_PASS) else 'admin'
@@ -132,12 +138,15 @@ def _respuesta_401():
     )
 
 def requiere_auth(f):
-    """Cualquier usuario válido (captura o admin)."""
+    """Captura o admin. El rol de solo lectura (viewer) queda excluido:
+    no debe ver el formulario de captura, solo el tablero."""
     @wraps(f)
     def decorado(*args, **kwargs):
         rol = _rol_de(request.authorization)
         if rol is None:
             return _respuesta_401()
+        if rol == 'viewer':
+            return jsonify({'error': 'Cuenta de solo lectura. Usa el tablero en /tablero.'}), 403
         g.rol = rol
         return f(*args, **kwargs)
     return decorado
@@ -151,6 +160,19 @@ def requiere_admin(f):
             return _respuesta_401()
         if rol != 'admin':
             return jsonify({'error': 'Se requiere usuario administrador'}), 403
+        g.rol = rol
+        return f(*args, **kwargs)
+    return decorado
+
+def requiere_tablero(f):
+    """Tablero de solo lectura: accesible a admin o al rol viewer (jefe)."""
+    @wraps(f)
+    def decorado(*args, **kwargs):
+        rol = _rol_de(request.authorization)
+        if rol is None:
+            return _respuesta_401()
+        if rol not in ('admin', 'viewer'):
+            return jsonify({'error': 'Acceso restringido al tablero'}), 403
         g.rol = rol
         return f(*args, **kwargs)
     return decorado
@@ -649,7 +671,7 @@ def eliminar_domicilio(rid):
     return jsonify({'ok': True})
 
 @app.route('/api/dashboard/domicilios', methods=['GET'])
-@requiere_admin
+@requiere_tablero
 def dashboard_domicilios():
     _today = str(date.today())
     desde = request.args.get('desde', _today)
@@ -723,6 +745,53 @@ def dashboard_domicilios():
         'historial': hist,
         'equipos': list(EQUIPOS),
     })
+
+@app.route('/api/tablero/domicilios', methods=['GET'])
+@requiere_tablero
+def tablero_domicilios():
+    """Lista de los domicilios más recientes para el tablero de solo lectura."""
+    _today = str(date.today())
+    desde = request.args.get('desde', _today)
+    hasta = request.args.get('hasta', _today)
+    for _s in (desde, hasta):
+        try:
+            datetime.strptime(_s, '%Y-%m-%d')
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Formato de fecha inválido. Use YYYY-MM-DD'}), 400
+    if desde > hasta:
+        return jsonify({'error': 'desde debe ser anterior o igual a hasta'}), 400
+    equipo = request.args.get('equipo', '').strip()
+    try:
+        limit = min(max(int(request.args.get('limit', 50)), 1), 200)
+    except (ValueError, TypeError):
+        limit = 50
+    where = " WHERE fecha BETWEEN %s AND %s"
+    params = [desde, hasta]
+    if equipo:
+        where += " AND equipo = %s"
+        params.append(equipo)
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT id, folio, folio_acta, fecha, direccion, uso, nombre_comercio, "
+                    "estado, problematica, accion, equipo, plazo_horas, "
+                    "(foto_pdf IS NOT NULL) AS has_pdf, creado_en "
+                    "FROM domicilios" + where + " ORDER BY id DESC LIMIT %s",
+                    params + [limit])
+                rows = cur.fetchall()
+    finally:
+        conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/tablero')
+@requiere_tablero
+def tablero():
+    """Tablero de solo lectura (dirección). Sin formulario de captura."""
+    resp = make_response(render_template('tablero.html'))
+    resp.headers['Cache-Control'] = 'no-store, must-revalidate'
+    return resp
 
 @app.route('/api/export/excel/domicilios', methods=['GET'])
 @requiere_admin
