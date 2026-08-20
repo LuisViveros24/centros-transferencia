@@ -370,7 +370,19 @@ def eliminar_registro(rid):
 USOS_PREDIO    = ('Comercial', 'Habitacional')
 ESTADOS_PREDIO = ('Habitado', 'Deshabitado', 'Baldío')
 PROBLEMATICAS  = ('Escombro', 'Basura', 'Enyerbado', 'Desecho Vegetal',
-                  'Poda de Árboles', 'Vehículo Chatarra')
+                  'Poda de Árboles', 'Vehículo Chatarra',
+                  'Descarga de grasa', 'Otro')
+# Fundamento legal por problemática (verificado contra los reglamentos de Torreón).
+# 'art' = artículo(s) que se infringe · 'tag': DS=Regl. Desarrollo Sustentable, Limp=Regl. Limpieza.
+FUNDAMENTOS = {
+    'Escombro':          {'art': 'Art. 270 fr. XXXII (base 209)', 'tag': 'DS'},
+    'Basura':            {'art': 'Art. 270 fr. XXXIX/XL',         'tag': 'DS'},
+    'Enyerbado':         {'art': 'Art. 13 fr. I / 16 fr. I',      'tag': 'Limp'},
+    'Desecho Vegetal':   {'art': 'Art. 13 fr. VI / 270 fr. XLII', 'tag': 'Limp/DS'},
+    'Poda de Árboles':   {'art': 'Art. 209 / 270 fr. XLII',       'tag': 'DS'},
+    'Vehículo Chatarra': {'art': 'Art. 200 y 209',                'tag': 'DS'},
+    'Descarga de grasa': {'art': 'Art. 106 / 270 fr. XII',        'tag': 'DS'},
+}
 ACCIONES       = ('Notificado', 'Amonestado', 'Multado')
 # Equipos de captura: nombres provisionales; se editarán cuando lleguen los reales.
 EQUIPOS        = ('Equipo 1', 'Equipo 2', 'Equipo 3', 'Equipo 4', 'Equipo 5')
@@ -570,6 +582,14 @@ def crear_domicilio():
                         f'Plazo: {_plazo_texto(plazo_horas) or "—"}',
                         f'Ubicación (lat, lng): {coords}',
                     ]
+                    _fund_any = False
+                    for _p in (prob_in if isinstance(prob_in, list) else [problematica]):
+                        _f = FUNDAMENTOS.get(str(_p).split(':')[0].strip())
+                        if _f:
+                            meta.append(f'   Fundamento {str(_p).strip()}: {_f["art"]} [{_f["tag"]}]')
+                            _fund_any = True
+                    if _fund_any:
+                        meta.append('   [DS] R. Desarrollo Sustentable  ·  [Limp] R. Limpieza')
                     try:
                         foto_pdf = _fotos_a_pdf(fotos_dec, meta)
                     except Exception:

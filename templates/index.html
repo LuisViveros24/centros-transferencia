@@ -645,6 +645,10 @@
         <div class="field" style="margin-bottom:16px">
           <label>Problemática <span style="font-weight:400;color:var(--text2);font-size:12px">(puedes elegir varias)</span></label>
           <div class="pga-grid" id="dom-problematica"></div>
+          <div id="dom-otro-wrap" style="display:none;margin-top:8px">
+            <input type="text" id="dom-problematica-otro" maxlength="80" placeholder="Especifica la problemática (Otro)..." style="width:100%"/>
+          </div>
+          <div id="dom-guia" style="display:none;margin-top:10px"></div>
         </div>
 
         <div class="field" style="margin-bottom:16px">
@@ -1033,6 +1037,40 @@ async function initRol() {
 // ── Domicilios (control de predios) ────────────────────────────
 // Constructor genérico de opciones (reutiliza el estilo .pga-btn).
 // multi=true permite marcar varias; multi=false es selección única.
+// ── Fundamento legal por problemática (guía rápida para el inspector) ──
+const FUNDAMENTOS_PROBLEMATICA = {
+  'Escombro': {art:'Art. 270 fr. XXXII (base Art. 209)', reg:'Regl. de Desarrollo Sustentable y Protección al Ambiente de Torreón', txt:'Prohibido acumular o abandonar escombro o material de demolición en baldíos, fincas o vía pública. Sanción (Art. 271): hasta 10,000 salarios mínimos.'},
+  'Basura': {art:'Art. 270 fr. XXXIX (casa) / fr. XL (comercio)', reg:'Regl. de Desarrollo Sustentable y Protección al Ambiente de Torreón', txt:'Prohibido sacar la basura fuera del día y horario de recolección. Casa habitación: 2 a 100 s.m.; comercios/industrias: 10 a 10,000 s.m.'},
+  'Enyerbado': {art:'Art. 13 fr. I (habitantes) / Art. 16 fr. I (comercios)', reg:'Regl. de Limpieza del Municipio de Torreón', txt:'Obligación de mantener aseado el frente del predio que ocupa. Sanción: 20 a 50 UMAS (o amonestación/servicios); predios baldíos (fr. III): 30 a 100 UMAS.'},
+  'Desecho Vegetal': {art:'Art. 13 fr. VI (Limpieza) y Art. 270 fr. XLII (Des. Sustentable)', reg:'Regl. de Limpieza / Desarrollo Sustentable', txt:'El generador debe transportar o solicitar el retiro de ramazón, hojarasca y pasto; prohibido disponerlos en sitios no autorizados (hasta 10,000 s.m.).'},
+  'Poda de Árboles': {art:'Art. 209 y Art. 270 fr. XLII', reg:'Regl. de Desarrollo Sustentable y Protección al Ambiente de Torreón', txt:'Prohibido dejar o disponer los residuos de poda en la vía pública o en sitios no autorizados. Sanción: Art. 271.'},
+  'Vehículo Chatarra': {art:'Art. 200 y Art. 209', reg:'Regl. de Desarrollo Sustentable y Protección al Ambiente de Torreón', txt:'Prohibido abandonar vehículos chatarra o residuos en la vía pública; obligación de mantener limpio y disponer en sitios autorizados. Sanción: Art. 270/271 fr. XLII.'},
+  'Descarga de grasa': {art:'Art. 106 → Art. 270/271 fr. XII', reg:'Regl. de Desarrollo Sustentable y Protección al Ambiente de Torreón', txt:'Se prohíbe descargar al drenaje pluvial, a la vía pública o al suelo grasas, aceites, solventes o sustancias inflamables/tóxicas. Sanción: 20 a 10,000 salarios mínimos.'},
+  'Otro': {art:'—', reg:'Especifica y fundamenta en el acta física', txt:'Describe brevemente la problemática detectada en el campo de texto.'}
+};
+function toggleOtroProblematica(){
+  const sel = getOpts('dom-problematica');
+  const wrap = document.getElementById('dom-otro-wrap');
+  if (wrap) wrap.style.display = sel.includes('Otro') ? 'block' : 'none';
+  renderGuiaProblematica();
+}
+function renderGuiaProblematica(){
+  const cont = document.getElementById('dom-guia');
+  if (!cont) return;
+  const sel = getOpts('dom-problematica');
+  if (!sel.length){ cont.innerHTML=''; cont.style.display='none'; return; }
+  cont.style.display='block';
+  cont.innerHTML =
+    '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);margin-bottom:6px">Guía rápida — artículo para informar al ciudadano</div>' +
+    sel.map(function(p){
+      const f = FUNDAMENTOS_PROBLEMATICA[p] || {art:'—',reg:'',txt:''};
+      return '<div style="border-left:3px solid #C55A11;background:rgba(197,90,17,.06);padding:8px 10px;border-radius:6px;margin-bottom:6px">' +
+        '<div style="font-weight:600">' + escHtml(p) + ' — ' + escHtml(f.art) + '</div>' +
+        '<div style="font-size:12px;color:var(--text2)">' + escHtml(f.reg) + '</div>' +
+        '<div style="font-size:12.5px;margin-top:3px">' + escHtml(f.txt) + '</div>' +
+      '</div>';
+    }).join('');
+}
 function buildOpts(id, values, multi) {
   const c = document.getElementById(id);
   c.dataset.multi = multi ? '1' : '';
@@ -1049,6 +1087,7 @@ function buildOpts(id, values, multi) {
       btn.classList.add('sel');              // una sola
     }
     if (id === 'dom-uso') toggleComercio();
+    if (id === 'dom-problematica') toggleOtroProblematica();
   });
 }
 function getOpt(id) {
@@ -1147,6 +1186,9 @@ function limpiarDom() {
   document.getElementById('dom-plazo').value = '';
   ['dom-uso','dom-estado','dom-problematica','dom-accion'].forEach(id =>
     document.querySelectorAll('#' + id + ' .pga-btn').forEach(b => b.classList.remove('sel')));
+  document.getElementById('dom-problematica-otro').value = '';
+  document.getElementById('dom-otro-wrap').style.display = 'none';
+  renderGuiaProblematica();
   document.getElementById('dom-comercio-wrap').style.display = 'none';
   _domFotos = [];
   renderFotosPreview();
@@ -1161,6 +1203,9 @@ async function registrarDomicilio() {
   const uso          = getOpt('dom-uso');
   const estado       = getOpt('dom-estado');
   const problematica = getOpts('dom-problematica');   // varias opciones
+  const otroTxt = document.getElementById('dom-problematica-otro').value.trim();
+  if (problematica.includes('Otro') && !otroTxt) { toast('Escribe una breve explicación para la opción "Otro".'); return; }
+  const problematicaFinal = problematica.map(p => (p === 'Otro' && otroTxt) ? ('Otro: ' + otroTxt) : p);
   const accion       = getOpt('dom-accion');
   const comercio     = document.getElementById('dom-comercio').value.trim();
   const folioActa    = document.getElementById('dom-folio-acta').value.trim();
@@ -1182,7 +1227,7 @@ async function registrarDomicilio() {
         fecha, direccion, uso,
         nombre_comercio: comercio,
         folio_acta: folioActa,
-        estado, problematica, accion, equipo,
+        estado, problematica: problematicaFinal, accion, equipo,
         plazo_horas: plazo,
         lat: _domLat, lng: _domLng,
         obs,
@@ -1796,7 +1841,7 @@ buildPga('pga-sel-e');
 buildPga('pga-sel-s');
 buildOpts('dom-uso', ['Comercial','Habitacional']);
 buildOpts('dom-estado', ['Habitado','Deshabitado','Baldío']);
-buildOpts('dom-problematica', ['Escombro','Basura','Enyerbado','Desecho Vegetal','Poda de Árboles','Vehículo Chatarra'], true);
+buildOpts('dom-problematica', ['Escombro','Basura','Enyerbado','Desecho Vegetal','Poda de Árboles','Vehículo Chatarra','Descarga de grasa','Otro'], true);
 buildOpts('dom-accion', ['Notificado','Amonestado','Multado']);
 document.getElementById('dom-fecha').value = todayStr();
 document.getElementById('dom-equipo').innerHTML =
