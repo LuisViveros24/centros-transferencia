@@ -394,7 +394,7 @@ def eliminar_registro(rid):
 USOS_PREDIO    = ('Comercial', 'Habitacional')
 ESTADOS_PREDIO = ('Habitado', 'Deshabitado', 'Baldío')
 PROBLEMATICAS  = ('Escombro', 'Basura', 'Enyerbado', 'Desecho Vegetal',
-                  'Poda de Árboles', 'Vehículo Chatarra',
+                  'Desecho Vegetal Ajeno', 'Poda de Árboles', 'Vehículo Chatarra',
                   'Descarga de grasa', 'Otro')
 # Fundamento legal por problemática (verificado contra los reglamentos de Torreón).
 # 'art' = artículo(s) que se infringe · 'tag': DS=Regl. Desarrollo Sustentable, Limp=Regl. Limpieza.
@@ -403,6 +403,7 @@ FUNDAMENTOS = {
     'Basura':            {'art': 'Art. 270 fr. XXXIX/XL',         'tag': 'DS'},
     'Enyerbado':         {'art': 'Art. 13 fr. I / 16 fr. I',      'tag': 'Limp'},
     'Desecho Vegetal':   {'art': 'Art. 13 fr. VI / 270 fr. XLII', 'tag': 'Limp/DS'},
+    'Desecho Vegetal Ajeno': {'art': 'Art. 13 fr. VI / 270 fr. XLII', 'tag': 'Limp/DS'},
     'Poda de Árboles':   {'art': 'Art. 209 / 270 fr. XLII',       'tag': 'DS'},
     'Vehículo Chatarra': {'art': 'Art. 200 y 209',                'tag': 'DS'},
     'Descarga de grasa': {'art': 'Art. 106 / 270 fr. XII',        'tag': 'DS'},
