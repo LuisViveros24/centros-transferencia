@@ -93,6 +93,7 @@
     <div class="kpi noti"><div class="n" id="k-noti">0</div><div class="l">Notificados</div></div>
     <div class="kpi amon"><div class="n" id="k-amon">0</div><div class="l">Amonestados</div></div>
     <div class="kpi mult"><div class="n" id="k-mult">0</div><div class="l">Multados</div></div>
+    <div class="kpi" style="border-left:4px solid var(--rojo)"><div class="n" id="k-venc" style="color:var(--rojo)">0</div><div class="l">Plazos vencidos</div></div>
   </div>
 
   <div class="grid">
@@ -211,6 +212,7 @@ async function cargar(){
     document.getElementById('k-noti').textContent = (dash.por_accion||{})['Notificado']||0;
     document.getElementById('k-amon').textContent = (dash.por_accion||{})['Amonestado']||0;
     document.getElementById('k-mult').textContent = (dash.por_accion||{})['Multado']||0;
+    document.getElementById('k-venc').textContent = dash.vencidos||0;
 
     doughnut('c-accion', dash.por_accion, 'Sin acción');
     doughnut('c-estado', dash.por_estado);

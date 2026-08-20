@@ -95,7 +95,9 @@ try:
                                 ('equipo','TEXT'), ('plazo_horas','INTEGER'),
                                 ('folio_acta','TEXT'), ('accion','TEXT'),
                                 ('lat','REAL'), ('lng','REAL'),
-                                ('foto_pdf','BYTEA')):
+                                ('foto_pdf','BYTEA'),
+                                ('cumplido','BOOLEAN'), ('cumplido_en','TIMESTAMP'),
+                                ('cumplido_obs','TEXT'), ('cumplido_por','TEXT')):
                 print(f'  · columna domicilios.{_col}')
                 cur.execute(f'ALTER TABLE domicilios ADD COLUMN IF NOT EXISTS {_col} {_tipo}')
             print('Insertando contador de folio inicial...')
