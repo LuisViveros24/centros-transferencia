@@ -1160,6 +1160,7 @@ const FUNDAMENTOS_PROBLEMATICA = {
   'Basura': {art:'Art. 270 fr. XXXIX (casa) / fr. XL (comercio)', reg:'Regl. de Desarrollo Sustentable y Protección al Ambiente de Torreón', txt:'Prohibido sacar la basura fuera del día y horario de recolección. Casa habitación: 2 a 100 s.m.; comercios/industrias: 10 a 10,000 s.m.'},
   'Enyerbado': {art:'Art. 13 fr. I (habitantes) / Art. 16 fr. I (comercios)', reg:'Regl. de Limpieza del Municipio de Torreón', txt:'Obligación de mantener aseado el frente del predio que ocupa. Sanción: 20 a 50 UMAS (o amonestación/servicios); predios baldíos (fr. III): 30 a 100 UMAS.'},
   'Desecho Vegetal': {art:'Art. 13 fr. VI (Limpieza) y Art. 270 fr. XLII (Des. Sustentable)', reg:'Regl. de Limpieza / Desarrollo Sustentable', txt:'El generador debe transportar o solicitar el retiro de ramazón, hojarasca y pasto; prohibido disponerlos en sitios no autorizados (hasta 10,000 s.m.).'},
+  'Desecho Vegetal Ajeno': {art:'Art. 13 fr. VI (Limpieza) y Art. 270 fr. XLII (Des. Sustentable)', reg:'Regl. de Limpieza / Desarrollo Sustentable', txt:'Mismo fundamento que "Desecho Vegetal". Se registra aparte para distinguir cuando el desecho proviene de terceros (vecinos) y no del habitante del predio.'},
   'Poda de Árboles': {art:'Art. 209 y Art. 270 fr. XLII', reg:'Regl. de Desarrollo Sustentable y Protección al Ambiente de Torreón', txt:'Prohibido dejar o disponer los residuos de poda en la vía pública o en sitios no autorizados. Sanción: Art. 271.'},
   'Vehículo Chatarra': {art:'Art. 200 y Art. 209', reg:'Regl. de Desarrollo Sustentable y Protección al Ambiente de Torreón', txt:'Prohibido abandonar vehículos chatarra o residuos en la vía pública; obligación de mantener limpio y disponer en sitios autorizados. Sanción: Art. 270/271 fr. XLII.'},
   'Descarga de grasa': {art:'Art. 106 → Art. 270/271 fr. XII', reg:'Regl. de Desarrollo Sustentable y Protección al Ambiente de Torreón', txt:'Se prohíbe descargar al drenaje pluvial, a la vía pública o al suelo grasas, aceites, solventes o sustancias inflamables/tóxicas. Sanción: 20 a 10,000 salarios mínimos.'},
@@ -1960,7 +1961,7 @@ buildPga('pga-sel-e');
 buildPga('pga-sel-s');
 buildOpts('dom-uso', ['Comercial','Habitacional']);
 buildOpts('dom-estado', ['Habitado','Deshabitado','Baldío']);
-buildOpts('dom-problematica', ['Escombro','Basura','Enyerbado','Desecho Vegetal','Poda de Árboles','Vehículo Chatarra','Descarga de grasa','Otro'], true);
+buildOpts('dom-problematica', ['Escombro','Basura','Enyerbado','Desecho Vegetal','Desecho Vegetal Ajeno','Poda de Árboles','Vehículo Chatarra','Descarga de grasa','Otro'], true);
 buildOpts('dom-accion', ['Notificado','Amonestado','Multado']);
 document.getElementById('dom-fecha').value = todayStr();
 document.getElementById('dom-equipo').innerHTML =
