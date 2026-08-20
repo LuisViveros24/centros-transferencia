@@ -238,6 +238,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       Historial domicilios
     </button>
+    <button class="nav-item" onclick="goTo('plazos',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+      Plazos
+    </button>
   </nav>
 
   <main class="content">
@@ -489,6 +493,7 @@
           <div class="metric-card"><div class="metric-label">Comercial</div><div class="metric-value" id="dd-comercial">—</div><div class="metric-sub">predios</div></div>
           <div class="metric-card"><div class="metric-label">Habitacional</div><div class="metric-value" id="dd-habitacional">—</div><div class="metric-sub">predios</div></div>
           <div class="metric-card"><div class="metric-label">Baldío</div><div class="metric-value" id="dd-baldio">—</div><div class="metric-sub">predios</div></div>
+          <div class="metric-card" style="border-left:4px solid #ef4444"><div class="metric-label">Plazos vencidos</div><div class="metric-value" id="dd-vencidos" style="color:#ef4444">—</div><div class="metric-sub" id="dd-porvencer-sub">— por vencer</div></div>
         </div>
 
         <div class="card">
@@ -731,16 +736,63 @@
       </div>
     </div>
 
+    <div id="page-plazos" class="page">
+      <div class="page-title">Plazos de atención</div>
+      <div class="page-sub">Seguimiento de domicilios con plazo. Confirma el cumplimiento y agrega tus observaciones.</div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <select id="pl-estado" style="font-size:13px;padding:6px 10px" onchange="renderPlazos()">
+            <option value="pendientes">Pendientes (vencidos + por vencer)</option>
+            <option value="vencidos">Solo vencidos</option>
+            <option value="por_vencer">Solo por vencer</option>
+            <option value="cumplidos">Cumplidos</option>
+            <option value="todos">Todos</option>
+          </select>
+          <select id="pl-equipo" style="font-size:13px;padding:6px 10px" onchange="renderPlazos()">
+            <option value="">Todos los equipos</option>
+          </select>
+          <button class="btn btn-primary" style="padding:6px 14px;font-size:13px" onclick="renderPlazos()">Actualizar</button>
+          <span id="pl-count" style="color:var(--text2);font-size:13px;margin-left:auto"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th>Folio</th><th>Fecha</th><th>Dirección</th><th>Equipo</th>
+              <th>Problemática</th><th>Plazo</th><th>Vence</th><th>Estado</th><th>Acción</th>
+            </tr></thead>
+            <tbody id="pl-body"><tr><td colspan="9" style="text-align:center;color:var(--text2);padding:20px">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
 <div id="toast"></div>
 
+<div id="pl-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:center;justify-content:center;padding:16px">
+  <div class="card" style="max-width:460px;width:100%">
+    <div style="font-weight:700;font-size:16px;margin-bottom:2px">Confirmar cumplimiento</div>
+    <div id="pl-modal-sub" style="color:var(--text2);font-size:13px;margin-bottom:12px"></div>
+    <label style="font-size:12px;color:var(--text2)">Observaciones</label>
+    <textarea id="pl-modal-obs" maxlength="500" style="width:100%;min-height:92px;margin-top:4px" placeholder="Ej. Se verificó en sitio; el predio fue limpiado / el comercio atendió la notificación..."></textarea>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-ghost" onclick="cerrarModalPlazo()">Cancelar</button>
+      <button class="btn btn-primary" id="pl-modal-guardar" onclick="guardarCumplimiento()">Confirmar cumplido</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const PGAS = ['ROVIROSA WADE','LEY SAULO','ESTERITO','RECOVERDE','COMPRESORA'];
 // Equipos que capturan domicilios: nombres provisionales; editar aquí cuando
 // lleguen los reales (esta lista llena el formulario y el filtro del dashboard).
-const EQUIPOS_DOM = ['Equipo 1','Equipo 2','Equipo 3','Equipo 4','Equipo 5'];
+const EQUIPOS_DOM = ['Equipo 1 · César Alvarado, Rafael Moisés y Cristina Estrada','Equipo 2 · Alberto Adame Martínez e Itzel García','Equipo 3 · José Guajardo, César Crispín y Dulce Pérez','Equipo 4 · Abraham Álvarez y Luis Viveros','Equipo 5 · Ernesto Escalera y Salvador García'];
 let chPga = null, chM3Pga = null, chHist = null;
 let chDomProb = null, chDomEquipo = null, chDomEstado = null, chDomHist = null, chDomAccion = null;
 let _domLat = null, _domLng = null;  // geolocalización del celular (opcional)
@@ -787,7 +839,7 @@ function closeSidebar() {
 
 function goTo(page, btn) {
   // El rol captura no navega a las vistas de análisis (el backend las protege igual)
-  if (ROL !== 'admin' && (page === 'dashboard' || page === 'historial' || page === 'domicilios-hist')) return;
+  if (ROL !== 'admin' && (page === 'dashboard' || page === 'historial' || page === 'domicilios-hist' || page === 'plazos')) return;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
@@ -800,6 +852,7 @@ function goTo(page, btn) {
   }
   if (page === 'historial') renderHistorial();
   if (page === 'domicilios-hist') renderDomicilios();
+  if (page === 'plazos') renderPlazos();
   if (page === 'domicilio' && !document.getElementById('dom-fecha').value) {
     document.getElementById('dom-fecha').value = todayStr();
   }
@@ -1019,6 +1072,68 @@ async function updateNavBadges() {
 
 // ── Rol del usuario ────────────────────────────────────────────
 let ROL = 'admin';
+// ── Módulo de Plazos (seguimiento de cumplimiento) ─────────────
+let _plModalId = null;
+function plazoTexto(h){ if(h===null||h===undefined) return '—'; if(Number(h)===0) return 'El mismo día'; return h+' h'; }
+function venceDisplay(s){
+  if(!s) return '—';
+  const d = new Date(s); if(isNaN(d)) return String(s);
+  const p = n => String(n).padStart(2,'0');
+  return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+'/'+d.getUTCFullYear()+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes());
+}
+async function renderPlazos(){
+  const estado = document.getElementById('pl-estado').value;
+  const equipo = document.getElementById('pl-equipo').value;
+  const body = document.getElementById('pl-body');
+  let rows;
+  try {
+    rows = await api('/api/plazos?estado=' + encodeURIComponent(estado) + (equipo ? '&equipo=' + encodeURIComponent(equipo) : ''));
+  } catch(e){ toast('No se pudieron cargar los plazos.'); return; }
+  document.getElementById('pl-count').textContent = rows.length + (rows.length===1 ? ' domicilio' : ' domicilios');
+  if (!rows.length){ body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:20px">Sin domicilios en este filtro.</td></tr>'; return; }
+  body.innerHTML = rows.map(function(r){
+    const badge = r.estado_plazo === 'vencido'
+      ? '<span style="background:rgba(239,68,68,.18);color:#ef4444;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">Vencido</span>'
+      : r.estado_plazo === 'cumplido'
+      ? '<span style="background:rgba(34,197,94,.18);color:#22c55e;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">Cumplido</span>'
+      : '<span style="background:rgba(245,158,11,.18);color:#f59e0b;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">Por vencer</span>';
+    const accion = r.estado_plazo === 'cumplido'
+      ? '<span style="color:var(--text2);font-size:12px" title="' + escHtml(r.cumplido_obs||'') + '">✓ ' + (r.cumplido_por ? escHtml(r.cumplido_por) : 'cumplido') + '</span>'
+      : '<button class="btn btn-primary" style="padding:4px 10px;font-size:12px" onclick="abrirModalPlazo(' + r.id + ', \'' + String(r.folio).replace(/'/g,"") + '\')">Confirmar</button>';
+    return '<tr>' +
+      '<td class="mono">' + escHtml(r.folio) + '</td>' +
+      '<td>' + fechaDisplay(r.fecha) + '</td>' +
+      '<td style="max-width:220px">' + escHtml(r.direccion||'—') + '</td>' +
+      '<td>' + escHtml(r.equipo||'—') + '</td>' +
+      '<td style="max-width:200px">' + escHtml(r.problematica||'—') + '</td>' +
+      '<td>' + plazoTexto(r.plazo_horas) + '</td>' +
+      '<td>' + venceDisplay(r.limite) + '</td>' +
+      '<td>' + badge + '</td>' +
+      '<td>' + accion + '</td>' +
+    '</tr>';
+  }).join('');
+}
+function abrirModalPlazo(id, folio){
+  _plModalId = id;
+  document.getElementById('pl-modal-sub').textContent = 'Domicilio ' + folio;
+  document.getElementById('pl-modal-obs').value = '';
+  document.getElementById('pl-modal').style.display = 'flex';
+}
+function cerrarModalPlazo(){ _plModalId = null; document.getElementById('pl-modal').style.display = 'none'; }
+async function guardarCumplimiento(){
+  if (!_plModalId) return;
+  const obs = document.getElementById('pl-modal-obs').value.trim();
+  const btn = document.getElementById('pl-modal-guardar');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    await api('/api/domicilios/' + _plModalId + '/cumplir', { method:'POST', body: JSON.stringify({ obs: obs }) });
+    toast('Cumplimiento confirmado.');
+    cerrarModalPlazo();
+    renderPlazos();
+  } catch(e){ toast('No se pudo confirmar. ' + (e.message||'')); }
+  finally { btn.disabled = false; btn.textContent = 'Confirmar cumplido'; }
+}
+
 async function initRol() {
   try {
     ROL = (await api('/api/whoami')).rol;
@@ -1031,6 +1146,8 @@ async function initRol() {
     if (navHist) navHist.style.display = 'none';
     const navDomHist = document.querySelector('button[onclick*="domicilios-hist"]');
     if (navDomHist) navDomHist.style.display = 'none';
+    const navPlazos = document.querySelector('button[onclick*="plazos"]');
+    if (navPlazos) navPlazos.style.display = 'none';
   }
 }
 
@@ -1356,6 +1473,8 @@ async function renderDashDomicilios() {
   document.getElementById('dd-comercial').textContent    = data.por_uso['Comercial'] || 0;
   document.getElementById('dd-habitacional').textContent = data.por_uso['Habitacional'] || 0;
   document.getElementById('dd-baldio').textContent       = data.por_estado['Baldío'] || 0;
+  document.getElementById('dd-vencidos').textContent     = data.vencidos || 0;
+  document.getElementById('dd-porvencer-sub').textContent = (data.por_vencer || 0) + ' por vencer';
 
   chDomProb = _chartDom('ch-dom-prob', chDomProb,
     _barCfg(data.por_problematica.map(x => x.k), data.por_problematica.map(x => x.c), '#8b5cf6'));
@@ -1847,6 +1966,8 @@ document.getElementById('dom-fecha').value = todayStr();
 document.getElementById('dom-equipo').innerHTML =
   '<option value="">— Seleccionar —</option>' + EQUIPOS_DOM.map(e => '<option>' + e + '</option>').join('');
 document.getElementById('dd-equipo').innerHTML =
+  '<option value="">Todos los equipos</option>' + EQUIPOS_DOM.map(e => '<option>' + e + '</option>').join('');
+document.getElementById('pl-equipo').innerHTML =
   '<option value="">Todos los equipos</option>' + EQUIPOS_DOM.map(e => '<option>' + e + '</option>').join('');
 autoNow('e-fecha','e-hora');
 autoNow('s-fecha','s-hora');

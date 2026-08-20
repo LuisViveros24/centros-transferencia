@@ -97,7 +97,9 @@ def init_db():
                 for _col, _tipo in (('folio_acta','TEXT'), ('accion','TEXT'),
                                     ('equipo','TEXT'), ('plazo_horas','INTEGER'),
                                     ('lat','REAL'), ('lng','REAL'),
-                                    ('obs','TEXT'), ('foto_pdf','BYTEA')):
+                                    ('obs','TEXT'), ('foto_pdf','BYTEA'),
+                                    ('cumplido','BOOLEAN'), ('cumplido_en','TIMESTAMP'),
+                                    ('cumplido_obs','TEXT'), ('cumplido_por','TEXT')):
                     cur.execute(f'ALTER TABLE domicilios ADD COLUMN IF NOT EXISTS {_col} {_tipo}')
                 cur.execute(
                     "INSERT INTO config VALUES ('folio_base','1') ON CONFLICT DO NOTHING"
@@ -407,7 +409,18 @@ FUNDAMENTOS = {
 }
 ACCIONES       = ('Notificado', 'Amonestado', 'Multado')
 # Equipos de captura: nombres provisionales; se editarán cuando lleguen los reales.
-EQUIPOS        = ('Equipo 1', 'Equipo 2', 'Equipo 3', 'Equipo 4', 'Equipo 5')
+EQUIPOS        = (
+    'Equipo 1 · César Alvarado, Rafael Moisés y Cristina Estrada',
+    'Equipo 2 · Alberto Adame Martínez e Itzel García',
+    'Equipo 3 · José Guajardo, César Crispín y Dulce Pérez',
+    'Equipo 4 · Abraham Álvarez y Luis Viveros',
+    'Equipo 5 · Ernesto Escalera y Salvador García',
+)
+# Expresión SQL del datetime límite del plazo (misma lógica que _fecha_limite):
+# plazo_horas 0 = 'el mismo día' (vence 23:59 del día de inspección); NULL = sin plazo.
+SQL_LIMITE = ("CASE WHEN plazo_horas IS NULL THEN NULL "
+              "WHEN plazo_horas = 0 THEN (fecha::timestamp + interval '23 hours 59 minutes') "
+              "ELSE (fecha::timestamp + make_interval(hours => plazo_horas)) END")
 MAX_FOTOS      = 2                     # fotos por domicilio
 MAX_FOTO_BYTES = 5 * 1024 * 1024       # 5 MB por foto (ya comprimida en el cliente)
 
@@ -722,6 +735,11 @@ def dashboard_domicilios():
                 # Problemática puede tener varias opciones por domicilio (separadas por coma):
                 # se cuentan por separado.
                 prob_rows = qa("SELECT problematica FROM domicilios" + base_where, params)
+                venc = q1(
+                    "SELECT "
+                    "COUNT(*) FILTER (WHERE NOT COALESCE(cumplido,false) AND lim IS NOT NULL AND lim < now()) v, "
+                    "COUNT(*) FILTER (WHERE NOT COALESCE(cumplido,false) AND lim IS NOT NULL AND lim >= now()) p "
+                    "FROM (SELECT cumplido, " + SQL_LIMITE + " lim FROM domicilios" + base_where + ") t", params)
     finally:
         conn.close()
 
@@ -744,6 +762,8 @@ def dashboard_domicilios():
         'por_equipo': por_equipo,
         'historial': hist,
         'equipos': list(EQUIPOS),
+        'vencidos': venc.get('v', 0) if venc else 0,
+        'por_vencer': venc.get('p', 0) if venc else 0,
     })
 
 @app.route('/api/tablero/domicilios', methods=['GET'])
@@ -792,6 +812,65 @@ def tablero():
     resp = make_response(render_template('tablero.html'))
     resp.headers['Cache-Control'] = 'no-store, must-revalidate'
     return resp
+
+@app.route('/api/plazos', methods=['GET'])
+@requiere_admin
+def api_plazos():
+    """Domicilios con plazo, para el módulo de seguimiento. estado_plazo:
+    'vencido' | 'por_vencer' | 'cumplido'. Filtros opcionales: equipo y estado."""
+    equipo = request.args.get('equipo', '').strip()
+    estado = request.args.get('estado', 'pendientes')  # pendientes|vencidos|por_vencer|cumplidos|todos
+    where = "WHERE plazo_horas IS NOT NULL"
+    params = []
+    if equipo:
+        where += " AND equipo = %s"; params.append(equipo)
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT id, folio, folio_acta, fecha, direccion, uso, nombre_comercio, "
+                    "estado, problematica, accion, equipo, plazo_horas, obs, "
+                    "COALESCE(cumplido,false) AS cumplido, cumplido_en, cumplido_obs, cumplido_por, "
+                    + SQL_LIMITE + " AS limite, "
+                    "(" + SQL_LIMITE + " IS NOT NULL AND " + SQL_LIMITE + " < now()) AS vencido "
+                    "FROM domicilios " + where + " ORDER BY " + SQL_LIMITE + " ASC NULLS LAST",
+                    params)
+                rows = cur.fetchall()
+    finally:
+        conn.close()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d['estado_plazo'] = 'cumplido' if d['cumplido'] else ('vencido' if d['vencido'] else 'por_vencer')
+        out.append(d)
+    if estado in ('vencidos', 'por_vencer', 'cumplidos'):
+        objetivo = {'vencidos': 'vencido', 'por_vencer': 'por_vencer', 'cumplidos': 'cumplido'}[estado]
+        out = [d for d in out if d['estado_plazo'] == objetivo]
+    elif estado == 'pendientes':
+        out = [d for d in out if d['estado_plazo'] != 'cumplido']
+    return jsonify(out)
+
+@app.route('/api/domicilios/<int:rid>/cumplir', methods=['POST'])
+@requiere_admin
+def cumplir_domicilio(rid):
+    """Marca un domicilio como cumplido (plazo atendido) con observaciones. Solo admin."""
+    d = request.get_json(silent=True) or {}
+    obs = (d.get('obs') or '').strip()
+    por = (request.authorization.username if request.authorization else '') or ''
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE domicilios SET cumplido=TRUE, cumplido_en=now(), "
+                    "cumplido_obs=%s, cumplido_por=%s WHERE id=%s",
+                    (obs, por, rid))
+                if cur.rowcount == 0:
+                    return jsonify({'error': 'Domicilio no encontrado'}), 404
+    finally:
+        conn.close()
+    return jsonify({'ok': True})
 
 @app.route('/api/export/excel/domicilios', methods=['GET'])
 @requiere_admin
