@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, render_template, send_file, Response, g, make_response
 import psycopg2
 import psycopg2.extras
-import os, io, re, hmac, base64, math
+import os, io, re, hmac, base64, math, json
 from datetime import datetime, date
 from functools import wraps
 
@@ -422,6 +422,14 @@ EQUIPOS        = (
 SQL_LIMITE = ("CASE WHEN plazo_horas IS NULL THEN NULL "
               "WHEN plazo_horas = 0 THEN (fecha::timestamp + interval '23 hours 59 minutes') "
               "ELSE (fecha::timestamp + make_interval(hours => plazo_horas)) END")
+# ── Operativo: polígonos por equipo (por defecto; editable en la tabla config) ──
+POLY_ASIGNADOS = {
+    '1': [2, 9, 15, 16, 20, 26, 31, 39], '2': [4, 6, 12, 17, 21, 27, 32, 40],
+    '3': [1, 11, 14, 18, 28, 33, 34, 41], '4': [3, 8, 10, 19, 29, 30, 35, 42],
+    '5': [5, 7, 13, 24, 25, 37, 36, 38],
+}
+POLY_CUBIERTOS = [1, 2, 3, 4, 5, 6]
+POLY_COLORS = {'1': '#2980b9', '2': '#27ae60', '3': '#e67e22', '4': '#8e44ad', '5': '#e74c3c'}
 MAX_FOTOS      = 5                     # fotos por domicilio
 MAX_FOTO_BYTES = 5 * 1024 * 1024       # 5 MB por foto (ya comprimida en el cliente)
 
@@ -741,6 +749,8 @@ def dashboard_domicilios():
                     "COUNT(*) FILTER (WHERE NOT COALESCE(cumplido,false) AND lim IS NOT NULL AND lim < now()) v, "
                     "COUNT(*) FILTER (WHERE NOT COALESCE(cumplido,false) AND lim IS NOT NULL AND lim >= now()) p "
                     "FROM (SELECT cumplido, " + SQL_LIMITE + " lim FROM domicilios" + base_where + ") t", params)
+                pcfg = {r['clave']: r['valor'] for r in qa(
+                    "SELECT clave, valor FROM config WHERE clave IN ('poligonos_asignados','poligonos_cubiertos')")}
     finally:
         conn.close()
 
@@ -765,6 +775,11 @@ def dashboard_domicilios():
         'equipos': list(EQUIPOS),
         'vencidos': venc.get('v', 0) if venc else 0,
         'por_vencer': venc.get('p', 0) if venc else 0,
+        'poligonos': {
+            'asignados': json.loads(pcfg['poligonos_asignados']) if pcfg.get('poligonos_asignados') else POLY_ASIGNADOS,
+            'cubiertos': json.loads(pcfg['poligonos_cubiertos']) if pcfg.get('poligonos_cubiertos') else POLY_CUBIERTOS,
+            'colores': POLY_COLORS,
+        },
     })
 
 @app.route('/api/tablero/domicilios', methods=['GET'])
@@ -872,6 +887,43 @@ def cumplir_domicilio(rid):
     finally:
         conn.close()
     return jsonify({'ok': True})
+
+@app.route('/api/reporte/domicilios.pdf', methods=['GET'])
+@requiere_tablero
+def reporte_domicilios_pdf():
+    """Reporte informativo en PDF (resumen + avance de polígonos)."""
+    _today = str(date.today())
+    desde = request.args.get('desde', _today); hasta = request.args.get('hasta', _today)
+    for _s in (desde, hasta):
+        try:
+            datetime.strptime(_s, '%Y-%m-%d')
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Formato de fecha inválido. Use YYYY-MM-DD'}), 400
+    if desde > hasta:
+        return jsonify({'error': 'desde debe ser anterior o igual a hasta'}), 400
+    equipo = request.args.get('equipo', '').strip()
+    where = " WHERE fecha BETWEEN %s AND %s"; params = [desde, hasta]
+    if equipo:
+        where += " AND equipo = %s"; params.append(equipo)
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT equipo, uso, problematica FROM domicilios" + where, params)
+                rows = [dict(r) for r in cur.fetchall()]
+                cur.execute("SELECT clave, valor FROM config WHERE clave IN ('poligonos_asignados','poligonos_cubiertos')")
+                pcfg = {r['clave']: r['valor'] for r in cur.fetchall()}
+    finally:
+        conn.close()
+    asign = json.loads(pcfg['poligonos_asignados']) if pcfg.get('poligonos_asignados') else POLY_ASIGNADOS
+    cubiertos = json.loads(pcfg['poligonos_cubiertos']) if pcfg.get('poligonos_cubiertos') else POLY_CUBIERTOS
+    _MES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+    _d = datetime.strptime(desde, '%Y-%m-%d')
+    fecha_txt = (f'{_d.day} de {_MES[_d.month-1]} de {_d.year}') if desde == hasta else (desde + ' a ' + hasta)
+    from reporte import construir_reporte
+    pdf = construir_reporte(rows, asign, cubiertos, POLY_COLORS, fecha_txt)
+    return send_file(io.BytesIO(pdf), mimetype='application/pdf', as_attachment=True,
+                     download_name='Reporte_Operativo_' + desde + '.pdf')
 
 @app.route('/api/export/excel/domicilios', methods=['GET'])
 @requiere_admin
