@@ -117,8 +117,8 @@
       </table></div>
     </div>
     <div>
-      <div class="note" style="margin-top:0;margin-bottom:6px;font-weight:700;color:var(--dark)">Mapa de avance — los grises faltan</div>
-      <div class="grid40" id="grid40"></div>
+      <div class="note" style="margin-top:0;margin-bottom:6px;font-weight:700;color:var(--dark)">Mapa del operativo — coloreados = cubiertos · grises = faltan</div>
+      <div id="mapa"></div>
     </div>
   </div>
   <div class="note" id="foot"></div>
@@ -142,8 +142,24 @@ document.getElementById('btn-pdf').addEventListener('click',()=>window.open(loca
 
 function tabla(tbodyId, items){
   const b=document.getElementById(tbodyId);
-  b.innerHTML = items.length ? items.map(([k,v])=>'<tr><td>'+esc(k)+'</td><td class="num">'+v+'</td></tr>').join('')
-    : '<tr><td colspan="2" style="color:var(--muted)">Sin datos</td></tr>';
+  if(!items.length){ b.innerHTML='<tr><td colspan="2" style="color:var(--muted)">Sin datos</td></tr>'; return; }
+  const tot=items.reduce((s,it)=>s+Number(it[1]),0);
+  b.innerHTML = items.map(([k,v])=>'<tr><td>'+esc(k)+'</td><td class="num">'+v+'</td></tr>').join('')
+    + '<tr class="total"><td>Total</td><td class="num">'+tot+'</td></tr>';
+}
+let MAPA=null;
+function renderMapa(covSet, col){
+  const cont=document.getElementById('mapa');
+  if(!MAPA || !MAPA.polys || !MAPA.polys.length){ cont.innerHTML='<div class="note">Mapa no disponible.</div>'; return; }
+  let svg='<svg viewBox="0 0 '+MAPA.w+' '+MAPA.h+'" style="width:100%;display:block">';
+  MAPA.polys.forEach(p=>{
+    const cov=covSet.has(Number(p.r)), fill=cov?(col[p.team]||'#2c3e50'):'#e3e7ec';
+    const pts=p.pts.map(xy=>xy[0]+','+xy[1]).join(' ');
+    const cx=p.pts.reduce((s,xy)=>s+xy[0],0)/p.pts.length, cy=p.pts.reduce((s,xy)=>s+xy[1],0)/p.pts.length;
+    svg+='<polygon points="'+pts+'" fill="'+fill+'" fill-opacity="'+(cov?0.9:0.75)+'" stroke="#fff" stroke-width="1"/>';
+    svg+='<text x="'+cx.toFixed(0)+'" y="'+cy.toFixed(0)+'" font-size="12" font-weight="bold" text-anchor="middle" dominant-baseline="middle" fill="'+(cov?'#fff':'#8a94a3')+'">R'+p.r+'</text>';
+  });
+  cont.innerHTML=svg+'</svg>';
 }
 function fromDict(o){return Object.entries(o||{}).sort((a,b)=>b[1]-a[1]);}
 function fromArr(a){return (a||[]).map(x=>[x.k,x.c]);}
@@ -171,16 +187,14 @@ function renderPolys(poly){
     html+='<tr><td>Equipo '+t+'</td><td class="num">'+cu+'</td><td class="num">'+ps.length+'</td><td class="num">'+(ps.length-cu)+'</td></tr>';});
   html+='<tr class="total"><td>TOTAL</td><td class="num">'+ncov+'</td><td class="num">'+total+'</td><td class="num">'+(total-ncov)+'</td></tr>';
   tb.innerHTML=html;
-  // rejilla 40
-  const g=document.getElementById('grid40');
-  g.innerHTML=all.map(p=>{const c=covSet.has(p);const bg=c?(col[polyTeam[p]]||'#2c3e50'):'';
-    return '<div class="cell'+(c?' cov':'')+'"'+(c?' style="background:'+bg+'"':'')+'>R'+p+'</div>';}).join('');
+  renderMapa(covSet, col);
   document.getElementById('foot').textContent='Hoy se cubrieron '+ncov+' de '+total+' polígonos ('+pct+'%). Faltan '+(total-ncov)+'.';
 }
 
 async function cargar(){
   const err=document.getElementById('err');
   try{
+    if(!MAPA){ try{ MAPA=await fetch(location.origin+'/api/operativo/mapa',{cache:'no-store'}).then(r=>r.ok?r.json():null); }catch(e){ MAPA=null; } }
     const d=await fetch(location.origin+'/api/dashboard/domicilios'+qs(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error(r.status);return r.json();});
     err.style.display='none';
     if(!equiposCargados && Array.isArray(d.equipos)){const s=document.getElementById('f-equipo');
