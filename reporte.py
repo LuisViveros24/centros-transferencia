@@ -1,14 +1,15 @@
 """Generador del reporte informativo (PDF) del operativo de domicilios.
 Se usa desde el botón "Descargar PDF" del tablero."""
-import io, os, json
+import io, os, json, re
 from datetime import datetime
 from xml.sax.saxutils import escape
 from reportlab.lib.pagesizes import letter, landscape
 from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.graphics.shapes import Drawing, Rect, String, Polygon as RLPolygon
+from reportlab.graphics.charts.piecharts import Pie
 
 DARK = colors.HexColor('#2c3e50'); GREY = colors.HexColor('#eef1f4'); LGREY = colors.HexColor('#d9dee6')
 
@@ -41,7 +42,7 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
     st = getSampleStyleSheet()
     H1 = ParagraphStyle('h1', parent=st['Title'], fontSize=16, textColor=DARK, spaceAfter=2)
     SUB = ParagraphStyle('s', parent=st['Normal'], fontSize=9.5, textColor=colors.HexColor('#7f8c8d'), spaceAfter=2)
-    H2 = ParagraphStyle('h2', parent=st['Heading2'], fontSize=12.5, textColor=DARK, spaceBefore=7, spaceAfter=3)
+    H2 = ParagraphStyle('h2', parent=st['Heading2'], fontSize=12.5, textColor=DARK, spaceBefore=4, spaceAfter=3)
     C = ParagraphStyle('c', parent=st['Normal'], fontSize=8.5, leading=10.5)
     Cc = ParagraphStyle('cc', parent=C, alignment=1)
     Cb = ParagraphStyle('cb2', parent=C, fontName='Helvetica-Bold')
@@ -53,18 +54,42 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
     def P(t, s=C):
         return Paragraph(escape(str(t if t not in (None, '') else '—')), s)
 
-    def mini(titulo, data):
-        items = sorted(data.items(), key=lambda x: -x[1])
+    PALETA = ['#3b82f6', '#27ae60', '#e67e22', '#8e44ad', '#e74c3c', '#14b8a6', '#eab308', '#f472b6', '#60a5fa', '#7f8c8d']
+
+    def _cols(titulo, items):
+        if titulo == 'Por equipo':
+            r = []
+            for k, _ in items:
+                m = re.search(r'(\d+)', str(k)); r.append(colores.get(m.group(1), '#7f8c8d') if m else '#7f8c8d')
+            return r
+        return [PALETA[i % len(PALETA)] for i in range(len(items))]
+
+    def mini(titulo, items, hx):
         body = [[P(titulo, CB), P('Actas', CBc)]]
-        for k, v in items:
-            body.append([P(k), P(v, Cc)])
+        for i, (k, v) in enumerate(items):
+            body.append([Paragraph('<font color="%s">\u25a0</font> %s' % (hx[i], escape(str(k))), C), P(v, Cc)])
         body.append([P('Total', Cb), P(sum(v for _, v in items), Ccb)])
-        t = Table(body, colWidths=[5.4 * cm, 1.8 * cm])
+        t = Table(body, colWidths=[5.6 * cm, 1.6 * cm])
         t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), DARK), ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, GREY]),
             ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#dfe6ec')),
             ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#dfe4ea')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]))
+            ('TOPPADDING', (0, 0), (-1, -1), 2.5), ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5)]))
         return t
+
+    def _pie(items, hx):
+        d = Drawing(132, 88)
+        pc = Pie(); pc.x = 30; pc.y = 6; pc.width = 72; pc.height = 72
+        pc.data = [max(float(v), 0.0001) for _, v in items]
+        pc.slices.strokeColor = colors.white; pc.slices.strokeWidth = 1.2
+        for i in range(len(items)):
+            pc.slices[i].fillColor = colors.HexColor(hx[i])
+        d.add(pc); return d
+
+    def columna(titulo, data):
+        items = sorted(data.items(), key=lambda x: -x[1])
+        hx = _cols(titulo, items)
+        return Table([[mini(titulo, items, hx)], [Spacer(1, 3)], [_pie(items, hx)]],
+                     colWidths=[7.6 * cm], style=[('ALIGN', (0, 0), (-1, -1), 'CENTER'), ('VALIGN', (0, 0), (-1, -1), 'TOP')])
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(letter), topMargin=1.0 * cm, bottomMargin=0.9 * cm,
@@ -78,12 +103,13 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
                        ' polígonos cubiertos (' + str(round(ncov / total_poly * 100)) + '%) · faltan ' + str(total_poly - ncov), SUB))
     S.append(Spacer(1, 5))
     S.append(Paragraph('Resumen del día', H2))
-    resumen = Table([[mini('Por equipo', por_eq), mini('Por problemática', por_prob), mini('Por uso', por_uso)]],
-                    colWidths=[7.7 * cm, 7.7 * cm, 7.7 * cm])
+    resumen = Table([[columna('Por equipo', por_eq), columna('Por problemática', por_prob), columna('Por uso', por_uso)]],
+                    colWidths=[7.9 * cm, 7.9 * cm, 7.9 * cm])
     resumen.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
     S.append(resumen)
 
-    # Avance del operativo: barra + tabla por equipo (izq) + MAPA REAL (der)
+    # Avance del operativo (página 2)
+    S.append(PageBreak())
     S.append(Paragraph('Avance del operativo', H2))
     pct = ncov / total_poly
     bar = Drawing(300, 24)
@@ -101,13 +127,13 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]))
 
     geo = _load_geo()
-    mapa = _mapa_drawing(geo, cov, tcol, 340) if geo and geo.get('polys') else _grid_fallback(allp, poly_team, cov, tcol)
+    mapa = _mapa_drawing(geo, cov, tcol, 440) if geo and geo.get('polys') else _grid_fallback(allp, poly_team, cov, tcol)
 
     izq = Table([[bar], [Spacer(1, 6)], [tav]], colWidths=[11 * cm]); izq.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
     der = Table([[Paragraph('Mapa del operativo — coloreados = cubiertos · grises = faltan',
-        ParagraphStyle('x', parent=NOTE, fontName='Helvetica-Bold', textColor=DARK))], [mapa]], colWidths=[12.4 * cm])
+        ParagraphStyle('x', parent=NOTE, fontName='Helvetica-Bold', textColor=DARK))], [mapa]], colWidths=[16 * cm])
     der.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
-    comp = Table([[izq, der]], colWidths=[13.5 * cm, 12.8 * cm]); comp.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
+    comp = Table([[izq, der]], colWidths=[11 * cm, 16 * cm]); comp.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
     S.append(comp)
     doc.build(S)
     buf.seek(0)

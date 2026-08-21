@@ -51,6 +51,7 @@
   .progress{height:18px;background:var(--lgrey);border-radius:6px;overflow:hidden;}
   .progress > div{height:100%;background:var(--green);border-radius:6px;transition:width .4s;}
   .grid40{display:grid;grid-template-columns:repeat(10,1fr);gap:5px;}
+  .pie{display:flex;justify-content:center;padding:12px 0 6px;border-top:1px solid var(--line);}
   .cell{border-radius:4px;font-size:10px;font-weight:700;text-align:center;padding:4px 0;color:#95a5a6;
         background:#eef1f4;border:1px solid var(--lgrey);}
   .cell.cov{color:#fff;border-color:#fff;}
@@ -96,9 +97,9 @@
 
   <h2>Resumen del día</h2>
   <div class="cards3">
-    <div class="card"><table><thead><tr><th>Por equipo</th><th class="num">Actas</th></tr></thead><tbody id="t-eq"></tbody></table></div>
-    <div class="card"><table><thead><tr><th>Por problemática</th><th class="num">Actas</th></tr></thead><tbody id="t-prob"></tbody></table></div>
-    <div class="card"><table><thead><tr><th>Por uso</th><th class="num">Actas</th></tr></thead><tbody id="t-uso"></tbody></table></div>
+    <div class="card"><table><thead><tr><th>Por equipo</th><th class="num">Actas</th></tr></thead><tbody id="t-eq"></tbody></table><div class="pie" id="pie-eq"></div></div>
+    <div class="card"><table><thead><tr><th>Por problemática</th><th class="num">Actas</th></tr></thead><tbody id="t-prob"></tbody></table><div class="pie" id="pie-prob"></div></div>
+    <div class="card"><table><thead><tr><th>Por uso</th><th class="num">Actas</th></tr></thead><tbody id="t-uso"></tbody></table><div class="pie" id="pie-uso"></div></div>
   </div>
 
   <h2 id="h-polys">Polígonos cubiertos</h2>
@@ -140,12 +141,31 @@ document.getElementById('presets').addEventListener('click',e=>{const b=e.target
   if(id!=='f-equipo')document.querySelectorAll('#presets button').forEach(x=>x.classList.remove('on'));cargar();}));
 document.getElementById('btn-pdf').addEventListener('click',()=>window.open(location.origin+'/api/reporte/domicilios.pdf'+qs(),'_blank'));
 
-function tabla(tbodyId, items){
-  const b=document.getElementById(tbodyId);
-  if(!items.length){ b.innerHTML='<tr><td colspan="2" style="color:var(--muted)">Sin datos</td></tr>'; return; }
-  const tot=items.reduce((s,it)=>s+Number(it[1]),0);
-  b.innerHTML = items.map(([k,v])=>'<tr><td>'+esc(k)+'</td><td class="num">'+v+'</td></tr>').join('')
-    + '<tr class="total"><td>Total</td><td class="num">'+tot+'</td></tr>';
+const PAL=['#3b82f6','#27ae60','#e67e22','#8e44ad','#e74c3c','#14b8a6','#eab308','#f472b6','#60a5fa','#7f8c8d'];
+const TCOL={'1':'#2980b9','2':'#27ae60','3':'#e67e22','4':'#8e44ad','5':'#e74c3c'};
+function colorsFor(kind, items){
+  if(kind==='eq') return items.map(function(it){var m=String(it[0]).match(/(\d+)/);return m?(TCOL[m[1]]||'#7f8c8d'):'#7f8c8d';});
+  return items.map(function(_,i){return PAL[i%PAL.length];});
+}
+function svgPie(items, cols){
+  var total=items.reduce(function(s,it){return s+Number(it[1]);},0)||1;
+  var cx=50,cy=50,r=46,a=-Math.PI/2,paths='';
+  items.forEach(function(it,i){
+    var frac=Number(it[1])/total, a2=a+frac*2*Math.PI;
+    if(frac>=0.9999){ paths+='<circle cx="50" cy="50" r="46" fill="'+cols[i]+'"/>'; }
+    else{ var x1=cx+r*Math.cos(a),y1=cy+r*Math.sin(a),x2=cx+r*Math.cos(a2),y2=cy+r*Math.sin(a2),lg=frac>0.5?1:0;
+      paths+='<path d="M50,50 L'+x1.toFixed(2)+','+y1.toFixed(2)+' A46,46 0 '+lg+' 1 '+x2.toFixed(2)+','+y2.toFixed(2)+' Z" fill="'+cols[i]+'" stroke="#fff" stroke-width="1"/>'; }
+    a=a2;
+  });
+  return '<svg viewBox="0 0 100 100" style="width:118px;height:118px">'+paths+'</svg>';
+}
+function renderResumen(tbodyId, pieId, items, cols){
+  var b=document.getElementById(tbodyId), pe=document.getElementById(pieId);
+  if(!items.length){ b.innerHTML='<tr><td colspan="2" style="color:var(--muted)">Sin datos</td></tr>'; pe.innerHTML=''; return; }
+  var tot=items.reduce(function(s,it){return s+Number(it[1]);},0);
+  b.innerHTML=items.map(function(it,i){return '<tr><td><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:'+cols[i]+';margin-right:7px;vertical-align:middle"></span>'+esc(it[0])+'</td><td class="num">'+it[1]+'</td></tr>';}).join('')
+    +'<tr class="total"><td>Total</td><td class="num">'+tot+'</td></tr>';
+  pe.innerHTML=svgPie(items, cols);
 }
 let MAPA=null;
 function renderMapa(covSet, col){
@@ -204,9 +224,12 @@ async function cargar(){
     document.getElementById('k-amon').textContent=(d.por_accion||{})['Amonestado']||0;
     document.getElementById('k-mult').textContent=(d.por_accion||{})['Multado']||0;
     document.getElementById('k-venc').textContent=d.vencidos||0;
-    tabla('t-eq', fromArr(d.por_equipo).map(([k,v])=>[eqCorto(k),v]));
-    tabla('t-prob', fromArr(d.por_problematica));
-    tabla('t-uso', fromDict(d.por_uso));
+    var eqIt=fromArr(d.por_equipo).map(([k,v])=>[eqCorto(k),v]);
+    renderResumen('t-eq','pie-eq', eqIt, colorsFor('eq', eqIt));
+    var prIt=fromArr(d.por_problematica);
+    renderResumen('t-prob','pie-prob', prIt, colorsFor('o', prIt));
+    var usIt=fromDict(d.por_uso);
+    renderResumen('t-uso','pie-uso', usIt, colorsFor('o', usIt));
     if(d.poligonos) renderPolys(d.poligonos);
     const n=new Date();document.getElementById('updated').textContent=[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
   }catch(e){err.textContent='No se pudo actualizar ('+(e.message||e)+'). Reintentando…';err.style.display='block';}
