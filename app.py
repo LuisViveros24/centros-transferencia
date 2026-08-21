@@ -925,6 +925,20 @@ def reporte_domicilios_pdf():
     return send_file(io.BytesIO(pdf), mimetype='application/pdf', as_attachment=True,
                      download_name='Reporte_Operativo_' + desde + '.pdf')
 
+@app.route('/api/operativo/mapa', methods=['GET'])
+@requiere_tablero
+def operativo_mapa():
+    """Geometría de los polígonos (proyectada) para el mapa del tablero."""
+    try:
+        with open(os.path.join(os.path.dirname(__file__), 'mapa_poligonos.json'), encoding='utf-8') as f:
+            geo = json.load(f)
+    except Exception:
+        geo = {'w': 0, 'h': 0, 'polys': []}
+    geo['colores'] = POLY_COLORS
+    resp = jsonify(geo)
+    resp.headers['Cache-Control'] = 'public, max-age=3600'
+    return resp
+
 @app.route('/api/export/excel/domicilios', methods=['GET'])
 @requiere_admin
 def export_excel_domicilios():

@@ -1,7 +1,6 @@
 """Generador del reporte informativo (PDF) del operativo de domicilios.
-Se usa desde el botón "Descargar PDF" del tablero. Recibe los registros del
-periodo y la configuración de polígonos; devuelve los bytes del PDF."""
-import io
+Se usa desde el botón "Descargar PDF" del tablero."""
+import io, os, json
 from datetime import datetime
 from xml.sax.saxutils import escape
 from reportlab.lib.pagesizes import letter, landscape
@@ -9,16 +8,22 @@ from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.graphics.shapes import Drawing, Rect, String
+from reportlab.graphics.shapes import Drawing, Rect, String, Polygon as RLPolygon
 
 DARK = colors.HexColor('#2c3e50'); GREY = colors.HexColor('#eef1f4'); LGREY = colors.HexColor('#d9dee6')
 
 
+def _load_geo():
+    try:
+        with open(os.path.join(os.path.dirname(__file__), 'mapa_poligonos.json'), encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
 def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
-    """rows: lista de dicts con 'equipo','uso','problematica'.
-    asignados: {'1':[..],...}; cubiertos: [1,2,..]; colores: {'1':'#..',...}."""
     poly_team = {int(p): t for t, ps in asignados.items() for p in ps}
-    allp = sorted(poly_team); total = len(allp) or 1
+    allp = sorted(poly_team); total_poly = len(allp) or 1
     cov = set(int(x) for x in cubiertos)
     tcol = {k: colors.HexColor(v) for k, v in colores.items()}
     tname = {k: 'Equipo ' + k for k in asignados}
@@ -39,6 +44,8 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
     H2 = ParagraphStyle('h2', parent=st['Heading2'], fontSize=12.5, textColor=DARK, spaceBefore=7, spaceAfter=3)
     C = ParagraphStyle('c', parent=st['Normal'], fontSize=8.5, leading=10.5)
     Cc = ParagraphStyle('cc', parent=C, alignment=1)
+    Cb = ParagraphStyle('cb2', parent=C, fontName='Helvetica-Bold')
+    Ccb = ParagraphStyle('ccb', parent=Cc, fontName='Helvetica-Bold')
     CB = ParagraphStyle('cb', parent=st['Normal'], fontSize=8.5, leading=10.5, textColor=colors.white, fontName='Helvetica-Bold')
     CBc = ParagraphStyle('cbc', parent=CB, alignment=1)
     NOTE = ParagraphStyle('n', parent=st['Normal'], fontSize=8.5, textColor=colors.HexColor('#7f8c8d'), leading=11)
@@ -47,11 +54,14 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
         return Paragraph(escape(str(t if t not in (None, '') else '—')), s)
 
     def mini(titulo, data):
+        items = sorted(data.items(), key=lambda x: -x[1])
         body = [[P(titulo, CB), P('Actas', CBc)]]
-        for k, v in sorted(data.items(), key=lambda x: -x[1]):
+        for k, v in items:
             body.append([P(k), P(v, Cc)])
+        body.append([P('Total', Cb), P(sum(v for _, v in items), Ccb)])
         t = Table(body, colWidths=[5.4 * cm, 1.8 * cm])
-        t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), DARK), ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, GREY]),
+        t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), DARK), ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, GREY]),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#dfe6ec')),
             ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#dfe4ea')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]))
         return t
@@ -64,8 +74,8 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
     S.append(Paragraph('Reporte informativo · ' + fecha_txt + ' · Dirección de Limpieza (DGSPM)', SUB))
     ncov = len([p for p in allp if p in cov])
     S.append(Paragraph('Generado el ' + datetime.now().strftime('%d/%m/%Y %H:%M') +
-                       ' · ' + str(len(rows)) + ' amonestaciones · ' + str(ncov) + ' de ' + str(total) +
-                       ' polígonos cubiertos (' + str(round(ncov / total * 100)) + '%) · faltan ' + str(total - ncov), SUB))
+                       ' · ' + str(len(rows)) + ' amonestaciones · ' + str(ncov) + ' de ' + str(total_poly) +
+                       ' polígonos cubiertos (' + str(round(ncov / total_poly * 100)) + '%) · faltan ' + str(total_poly - ncov), SUB))
     S.append(Spacer(1, 5))
     S.append(Paragraph('Resumen del día', H2))
     resumen = Table([[mini('Por equipo', por_eq), mini('Por problemática', por_prob), mini('Por uso', por_uso)]],
@@ -73,43 +83,59 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
     resumen.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
     S.append(resumen)
 
-    covered_sorted = [p for p in allp if p in cov]
-    if covered_sorted:
-        S.append(Paragraph('Polígonos cubiertos', H2))
-        celdas = []
-        for p in covered_sorted:
-            t = poly_team[p]; d = Drawing(80, 52)
-            d.add(Rect(2, 2, 76, 48, rx=6, ry=6, fillColor=tcol.get(t, DARK), strokeColor=colors.white, strokeWidth=1.5))
-            d.add(String(40, 29, 'R%d' % p, fontName='Helvetica-Bold', fontSize=17, fillColor=colors.white, textAnchor='middle'))
-            d.add(String(40, 11, tname.get(t, ''), fontName='Helvetica', fontSize=7.5, fillColor=colors.white, textAnchor='middle'))
-            celdas.append(d)
-        # máximo 8 por fila
-        for i in range(0, len(celdas), 8):
-            fila = celdas[i:i + 8]
-            g = Table([fila], colWidths=[2.9 * cm] * len(fila))
-            g.setStyle(TableStyle([('ALIGN', (0, 0), (-1, -1), 'CENTER'), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]))
-            S.append(g)
-
+    # Avance del operativo: barra + tabla por equipo (izq) + MAPA REAL (der)
     S.append(Paragraph('Avance del operativo', H2))
-    pct = ncov / total
+    pct = ncov / total_poly
     bar = Drawing(300, 24)
     bar.add(Rect(0, 4, 232, 15, rx=4, ry=4, fillColor=LGREY, strokeColor=None))
     bar.add(Rect(0, 4, 232 * pct, 15, rx=4, ry=4, fillColor=colors.HexColor('#27ae60'), strokeColor=None))
-    bar.add(String(240, 8, '%d/%d (%d%%)' % (ncov, total, round(pct * 100)), fontName='Helvetica-Bold', fontSize=10, fillColor=DARK))
+    bar.add(String(240, 8, '%d/%d (%d%%)' % (ncov, total_poly, round(pct * 100)), fontName='Helvetica-Bold', fontSize=10, fillColor=DARK))
     tbody = [[P('Equipo', CB), P('Hoy', CBc), P('Asignados', CBc), P('Faltan', CBc)]]
-    bold = ParagraphStyle('b', parent=C, fontName='Helvetica-Bold'); boldc = ParagraphStyle('bc', parent=Cc, fontName='Helvetica-Bold')
     for k in sorted(asignados):
         ps = [int(x) for x in asignados[k]]; cub = len([p for p in ps if p in cov])
         tbody.append([P(tname[k]), P(cub, Cc), P(len(ps), Cc), P(len(ps) - cub, Cc)])
-    tbody.append([P('TOTAL', bold), P(ncov, boldc), P(total, boldc), P(total - ncov, boldc)])
+    tbody.append([P('TOTAL', Cb), P(ncov, Ccb), P(total_poly, Ccb), P(total_poly - ncov, Ccb)])
     tav = Table(tbody, colWidths=[3.4 * cm, 1.7 * cm, 2.4 * cm, 1.8 * cm])
     tav.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), DARK), ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, GREY]),
         ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#dfe6ec')), ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#dfe4ea')),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]))
+
+    geo = _load_geo()
+    mapa = _mapa_drawing(geo, cov, tcol, 340) if geo and geo.get('polys') else _grid_fallback(allp, poly_team, cov, tcol)
+
+    izq = Table([[bar], [Spacer(1, 6)], [tav]], colWidths=[11 * cm]); izq.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
+    der = Table([[Paragraph('Mapa del operativo — coloreados = cubiertos · grises = faltan',
+        ParagraphStyle('x', parent=NOTE, fontName='Helvetica-Bold', textColor=DARK))], [mapa]], colWidths=[12.4 * cm])
+    der.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
+    comp = Table([[izq, der]], colWidths=[13.5 * cm, 12.8 * cm]); comp.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
+    S.append(comp)
+    doc.build(S)
+    buf.seek(0)
+    return buf.read()
+
+
+def _mapa_drawing(geo, cov, tcol, target_w=430):
+    sc = target_w / float(geo['w']); dw = target_w; dh = geo['h'] * sc
+    d = Drawing(dw, dh)
+    for p in geo['polys']:
+        r = int(p['r']); c = r in cov
+        fill = tcol.get(p['team'], DARK) if c else colors.HexColor('#e3e7ec')
+        pts = []
+        for (x, y) in p['pts']:
+            pts += [x * sc, dh - y * sc]
+        d.add(RLPolygon(points=pts, fillColor=fill, strokeColor=colors.white, strokeWidth=0.8, fillOpacity=(0.9 if c else 0.75)))
+        cx = sum(pt[0] for pt in p['pts']) / len(p['pts']) * sc
+        cy = dh - sum(pt[1] for pt in p['pts']) / len(p['pts']) * sc
+        d.add(String(cx, cy - 3, 'R%d' % r, fontName='Helvetica-Bold', fontSize=6.5,
+                     fillColor=(colors.white if c else colors.HexColor('#8a94a3')), textAnchor='middle'))
+    return d
+
+
+def _grid_fallback(allp, poly_team, cov, tcol):
     cols = 10; gceld = []
     for p in allp:
-        t = poly_team[p]; c = p in cov; d = Drawing(38, 23)
-        d.add(Rect(1, 1, 36, 21, rx=3, ry=3, fillColor=(tcol.get(t, DARK) if c else colors.HexColor('#eef1f4')),
+        c = p in cov; d = Drawing(38, 23)
+        d.add(Rect(1, 1, 36, 21, rx=3, ry=3, fillColor=(tcol.get(poly_team.get(p), DARK) if c else colors.HexColor('#eef1f4')),
                    strokeColor=(colors.white if c else LGREY), strokeWidth=1))
         d.add(String(19, 8, 'R%d' % p, fontName='Helvetica-Bold', fontSize=8,
                      fillColor=(colors.white if c else colors.HexColor('#95a5a6')), textAnchor='middle'))
@@ -118,15 +144,7 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
     for f in filas:
         while len(f) < cols:
             f.append('')
-    rej = Table(filas, colWidths=[1.45 * cm] * cols)
-    rej.setStyle(TableStyle([('ALIGN', (0, 0), (-1, -1), 'CENTER'), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    t = Table(filas, colWidths=[1.45 * cm] * cols)
+    t.setStyle(TableStyle([('ALIGN', (0, 0), (-1, -1), 'CENTER'), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING', (0, 0), (-1, -1), 2), ('BOTTOMPADDING', (0, 0), (-1, -1), 2)]))
-    izq = Table([[bar], [Spacer(1, 6)], [tav]], colWidths=[11 * cm]); izq.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
-    der = Table([[Paragraph('Mapa de avance — %d polígonos (los grises faltan)' % total,
-        ParagraphStyle('x', parent=NOTE, fontName='Helvetica-Bold', textColor=DARK))], [rej]], colWidths=[15 * cm])
-    der.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
-    comp = Table([[izq, der]], colWidths=[11.5 * cm, 15.3 * cm]); comp.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
-    S.append(comp)
-    doc.build(S)
-    buf.seek(0)
-    return buf.read()
+    return t
