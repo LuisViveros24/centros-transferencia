@@ -391,7 +391,7 @@ def eliminar_registro(rid):
 # ── Domicilios (control de predios) ────────────────────────────
 # Catálogos de referencia. Se pueden ampliar/editar libremente; el backend
 # no restringe los valores (para facilitar cambios futuros sin migración).
-USOS_PREDIO    = ('Comercial', 'Habitacional')
+USOS_PREDIO    = ('Comercial', 'Habitacional', 'Ambos')
 ESTADOS_PREDIO = ('Habitado', 'Deshabitado', 'Baldío')
 PROBLEMATICAS  = ('Escombro', 'Basura', 'Enyerbado', 'Desecho Vegetal',
                   'Desecho Vegetal Ajeno', 'Poda de Árboles', 'Vehículo Chatarra',
