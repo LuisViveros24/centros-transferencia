@@ -727,7 +727,7 @@ def dashboard_domicilios():
                 total = q1("SELECT COUNT(*) c FROM domicilios" + base_where, params)['c']
 
                 por_uso = {r['k']: r['c'] for r in qa(
-                    "SELECT COALESCE(NULLIF(TRIM(uso),''),'—') k, COUNT(*) c FROM domicilios"
+                    "SELECT COALESCE(NULLIF(TRIM(uso),''),'Ambos') k, COUNT(*) c FROM domicilios"
                     + base_where + " GROUP BY 1", params)}
                 por_estado = {r['k']: r['c'] for r in qa(
                     "SELECT COALESCE(NULLIF(TRIM(estado),''),'—') k, COUNT(*) c FROM domicilios"
@@ -918,8 +918,14 @@ def reporte_domicilios_pdf():
     asign = json.loads(pcfg['poligonos_asignados']) if pcfg.get('poligonos_asignados') else POLY_ASIGNADOS
     cubiertos = json.loads(pcfg['poligonos_cubiertos']) if pcfg.get('poligonos_cubiertos') else POLY_CUBIERTOS
     _MES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
-    _d = datetime.strptime(desde, '%Y-%m-%d')
-    fecha_txt = (f'{_d.day} de {_MES[_d.month-1]} de {_d.year}') if desde == hasta else (desde + ' a ' + hasta)
+    def _fmt(s):
+        x = datetime.strptime(s, '%Y-%m-%d'); return f'{x.day} de {_MES[x.month-1]} de {x.year}'
+    if desde <= '2020-01-01':
+        fecha_txt = 'Acumulado total · al ' + _fmt(hasta)
+    elif desde == hasta:
+        fecha_txt = _fmt(desde)
+    else:
+        fecha_txt = _fmt(desde) + ' al ' + _fmt(hasta)
     from reporte import construir_reporte
     pdf = construir_reporte(rows, asign, cubiertos, POLY_COLORS, fecha_txt)
     return send_file(io.BytesIO(pdf), mimetype='application/pdf', as_attachment=True,
