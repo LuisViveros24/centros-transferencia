@@ -430,6 +430,7 @@ POLY_ASIGNADOS = {
 }
 POLY_CUBIERTOS = [1, 2, 3, 4, 5, 6]
 POLY_COLORS = {'1': '#2980b9', '2': '#27ae60', '3': '#e67e22', '4': '#8e44ad', '5': '#e74c3c'}
+MANZANAS_DEFAULT = {"1":8,"2":9,"3":7,"4":10,"5":7,"6":9,"7":6,"8":7,"9":9,"10":7,"11":7,"12":9,"13":7,"14":6,"15":6,"16":8,"17":6,"18":13,"19":14,"20":6,"21":8,"24":4,"25":7,"26":7,"27":8,"28":8,"29":8,"30":6,"31":8,"32":7,"33":7,"34":7,"35":7,"36":7,"37":8,"38":7,"39":6,"40":6,"41":6,"42":5}
 MAX_FOTOS      = 5                     # fotos por domicilio
 MAX_FOTO_BYTES = 5 * 1024 * 1024       # 5 MB por foto (ya comprimida en el cliente)
 
@@ -750,7 +751,7 @@ def dashboard_domicilios():
                     "COUNT(*) FILTER (WHERE NOT COALESCE(cumplido,false) AND lim IS NOT NULL AND lim >= now()) p "
                     "FROM (SELECT cumplido, " + SQL_LIMITE + " lim FROM domicilios" + base_where + ") t", params)
                 pcfg = {r['clave']: r['valor'] for r in qa(
-                    "SELECT clave, valor FROM config WHERE clave IN ('poligonos_asignados','poligonos_cubiertos')")}
+                    "SELECT clave, valor FROM config WHERE clave IN ('poligonos_asignados','poligonos_cubiertos','manzanas_por_poligono')")}
     finally:
         conn.close()
 
@@ -778,6 +779,7 @@ def dashboard_domicilios():
         'poligonos': {
             'asignados': json.loads(pcfg['poligonos_asignados']) if pcfg.get('poligonos_asignados') else POLY_ASIGNADOS,
             'cubiertos': json.loads(pcfg['poligonos_cubiertos']) if pcfg.get('poligonos_cubiertos') else POLY_CUBIERTOS,
+            'manzanas': json.loads(pcfg['manzanas_por_poligono']) if pcfg.get('manzanas_por_poligono') else MANZANAS_DEFAULT,
             'colores': POLY_COLORS,
         },
     })
@@ -911,12 +913,13 @@ def reporte_domicilios_pdf():
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute("SELECT equipo, uso, problematica FROM domicilios" + where, params)
                 rows = [dict(r) for r in cur.fetchall()]
-                cur.execute("SELECT clave, valor FROM config WHERE clave IN ('poligonos_asignados','poligonos_cubiertos')")
+                cur.execute("SELECT clave, valor FROM config WHERE clave IN ('poligonos_asignados','poligonos_cubiertos','manzanas_por_poligono')")
                 pcfg = {r['clave']: r['valor'] for r in cur.fetchall()}
     finally:
         conn.close()
     asign = json.loads(pcfg['poligonos_asignados']) if pcfg.get('poligonos_asignados') else POLY_ASIGNADOS
     cubiertos = json.loads(pcfg['poligonos_cubiertos']) if pcfg.get('poligonos_cubiertos') else POLY_CUBIERTOS
+    manzanas = json.loads(pcfg['manzanas_por_poligono']) if pcfg.get('manzanas_por_poligono') else MANZANAS_DEFAULT
     _MES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
     def _fmt(s):
         x = datetime.strptime(s, '%Y-%m-%d'); return f'{x.day} de {_MES[x.month-1]} de {x.year}'
@@ -927,7 +930,7 @@ def reporte_domicilios_pdf():
     else:
         fecha_txt = _fmt(desde) + ' al ' + _fmt(hasta)
     from reporte import construir_reporte
-    pdf = construir_reporte(rows, asign, cubiertos, POLY_COLORS, fecha_txt)
+    pdf = construir_reporte(rows, asign, cubiertos, POLY_COLORS, fecha_txt, manzanas)
     return send_file(io.BytesIO(pdf), mimetype='application/pdf', as_attachment=True,
                      download_name='Reporte_Operativo_' + desde + '.pdf')
 
