@@ -1241,7 +1241,8 @@ function obtenerUbicacion() {
 // El nombre del comercio solo aplica (y es obligatorio) cuando el uso es Comercial.
 function toggleComercio() {
   const w = document.getElementById('dom-comercio-wrap');
-  if (getOpt('dom-uso') === 'Comercial') {
+  var _u = getOpt('dom-uso');
+  if (_u === 'Comercial' || _u === 'Ambos') {
     w.style.display = '';
   } else {
     w.style.display = 'none';
@@ -1959,7 +1960,7 @@ async function cerrarSesion() {
 // ── Init ───────────────────────────────────────────────────────
 buildPga('pga-sel-e');
 buildPga('pga-sel-s');
-buildOpts('dom-uso', ['Comercial','Habitacional']);
+buildOpts('dom-uso', ['Comercial','Habitacional','Ambos']);
 buildOpts('dom-estado', ['Habitado','Deshabitado','Baldío']);
 buildOpts('dom-problematica', ['Escombro','Basura','Enyerbado','Desecho Vegetal','Desecho Vegetal Ajeno','Poda de Árboles','Vehículo Chatarra','Descarga de grasa','Otro'], true);
 buildOpts('dom-accion', ['Notificado','Amonestado','Multado']);
