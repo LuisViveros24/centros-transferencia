@@ -33,7 +33,7 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
     for r in rows:
         k = (r.get('equipo') or '—').split(' · ')[0]
         por_eq[k] = por_eq.get(k, 0) + 1
-        por_uso[r.get('uso') or '—'] = por_uso.get(r.get('uso') or '—', 0) + 1
+        por_uso[r.get('uso') or 'Ambos'] = por_uso.get(r.get('uso') or 'Ambos', 0) + 1
         for p in (r.get('problematica') or '').split(','):
             p = p.strip().split(':')[0].strip()
             if p:
@@ -65,11 +65,11 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
         return [PALETA[i % len(PALETA)] for i in range(len(items))]
 
     def mini(titulo, items, hx):
-        body = [[P(titulo, CB), P('Actas', CBc)]]
+        body = [[P(titulo, CB), P('Cantidad', CBc)]]
         for i, (k, v) in enumerate(items):
             body.append([Paragraph('<font color="%s">\u25a0</font> %s' % (hx[i], escape(str(k))), C), P(v, Cc)])
         body.append([P('Total', Cb), P(sum(v for _, v in items), Ccb)])
-        t = Table(body, colWidths=[5.6 * cm, 1.6 * cm])
+        t = Table(body, colWidths=[5.2 * cm, 2.0 * cm])
         t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), DARK), ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, GREY]),
             ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#dfe6ec')),
             ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#dfe4ea')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -79,8 +79,13 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
     def _pie(items, hx):
         d = Drawing(132, 88)
         pc = Pie(); pc.x = 30; pc.y = 6; pc.width = 72; pc.height = 72
-        pc.data = [max(float(v), 0.0001) for _, v in items]
+        vals = [max(float(v), 0.0001) for _, v in items]; tot = sum(vals) or 1
+        pc.data = vals
+        pc.labels = [('%d%%' % round(v / tot * 100)) if v / tot >= 0.06 else '' for v in vals]
+        pc.simpleLabels = 1
+        pc.slices.labelRadius = 0.62
         pc.slices.strokeColor = colors.white; pc.slices.strokeWidth = 1.2
+        pc.slices.fontName = 'Helvetica-Bold'; pc.slices.fontSize = 7; pc.slices.fontColor = colors.white
         for i in range(len(items)):
             pc.slices[i].fillColor = colors.HexColor(hx[i])
         d.add(pc); return d
@@ -99,7 +104,7 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
     S.append(Paragraph('Reporte informativo · ' + fecha_txt + ' · Dirección de Limpieza (DGSPM)', SUB))
     ncov = len([p for p in allp if p in cov])
     S.append(Paragraph('Generado el ' + datetime.now().strftime('%d/%m/%Y %H:%M') +
-                       ' · ' + str(len(rows)) + ' amonestaciones · ' + str(ncov) + ' de ' + str(total_poly) +
+                       ' · ' + str(len(rows)) + ' domicilios identificados · ' + str(ncov) + ' de ' + str(total_poly) +
                        ' polígonos cubiertos (' + str(round(ncov / total_poly * 100)) + '%) · faltan ' + str(total_poly - ncov), SUB))
     S.append(Spacer(1, 5))
     S.append(Paragraph('Resumen del día', H2))
@@ -107,6 +112,7 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
                     colWidths=[7.9 * cm, 7.9 * cm, 7.9 * cm])
     resumen.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
     S.append(resumen)
+    S.append(Paragraph('Nota: un solo predio puede presentar 2 o más problemáticas.', NOTE))
 
     # Avance del operativo (página 2)
     S.append(PageBreak())

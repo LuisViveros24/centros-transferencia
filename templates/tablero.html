@@ -76,7 +76,8 @@
     <div class="g">
       <label>Periodo</label>
       <div class="presets" id="presets">
-        <button data-d="0" class="on">Hoy</button>
+        <button data-d="all" class="on">Acumulado</button>
+        <button data-d="0">Hoy</button>
         <button data-d="6">7 días</button>
         <button data-d="29">30 días</button>
       </div>
@@ -88,7 +89,7 @@
   </div>
 
   <div class="kpis">
-    <div class="kpi"><div class="n" id="k-total">0</div><div class="l">Amonestaciones</div></div>
+    <div class="kpi"><div class="n" id="k-total">0</div><div class="l">Domicilios Identificados</div></div>
     <div class="kpi"><div class="n" id="k-noti">0</div><div class="l">Notificados</div></div>
     <div class="kpi"><div class="n" id="k-amon">0</div><div class="l">Amonestados</div></div>
     <div class="kpi"><div class="n" id="k-mult">0</div><div class="l">Multados</div></div>
@@ -97,10 +98,11 @@
 
   <h2>Resumen del día</h2>
   <div class="cards3">
-    <div class="card"><table><thead><tr><th>Por equipo</th><th class="num">Actas</th></tr></thead><tbody id="t-eq"></tbody></table><div class="pie" id="pie-eq"></div></div>
-    <div class="card"><table><thead><tr><th>Por problemática</th><th class="num">Actas</th></tr></thead><tbody id="t-prob"></tbody></table><div class="pie" id="pie-prob"></div></div>
-    <div class="card"><table><thead><tr><th>Por uso</th><th class="num">Actas</th></tr></thead><tbody id="t-uso"></tbody></table><div class="pie" id="pie-uso"></div></div>
+    <div class="card"><table><thead><tr><th>Por equipo</th><th class="num">Cantidad</th></tr></thead><tbody id="t-eq"></tbody></table><div class="pie" id="pie-eq"></div></div>
+    <div class="card"><table><thead><tr><th>Por problemática</th><th class="num">Cantidad</th></tr></thead><tbody id="t-prob"></tbody></table><div class="pie" id="pie-prob"></div></div>
+    <div class="card"><table><thead><tr><th>Por uso</th><th class="num">Cantidad</th></tr></thead><tbody id="t-uso"></tbody></table><div class="pie" id="pie-uso"></div></div>
   </div>
+  <div class="note" style="margin-top:6px">Nota: un solo predio puede presentar 2 o más problemáticas.</div>
 
   <h2 id="h-polys">Polígonos cubiertos</h2>
   <div class="polys" id="polys"></div>
@@ -130,7 +132,7 @@ let equiposCargados=false;
 function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function eqCorto(s){return String(s||'—').split(' · ')[0];}
-function setPreset(dias){const h=new Date(),d=new Date();d.setDate(h.getDate()-Number(dias));
+function setPreset(dias){var h=new Date(),d;if(dias==='all'){d=new Date(2020,0,1);}else{d=new Date();d.setDate(h.getDate()-Number(dias));}
   document.getElementById('f-desde').value=ymd(d);document.getElementById('f-hasta').value=ymd(h);}
 function qs(){const de=document.getElementById('f-desde').value,ha=document.getElementById('f-hasta').value,eq=document.getElementById('f-equipo').value;
   return '?desde='+de+'&hasta='+ha+(eq?'&equipo='+encodeURIComponent(eq):'');}
@@ -149,15 +151,17 @@ function colorsFor(kind, items){
 }
 function svgPie(items, cols){
   var total=items.reduce(function(s,it){return s+Number(it[1]);},0)||1;
-  var cx=50,cy=50,r=46,a=-Math.PI/2,paths='';
+  var cx=50,cy=50,r=46,a=-Math.PI/2,paths='',labels='';
   items.forEach(function(it,i){
-    var frac=Number(it[1])/total, a2=a+frac*2*Math.PI;
+    var frac=Number(it[1])/total, a2=a+frac*2*Math.PI, mid=(a+a2)/2;
     if(frac>=0.9999){ paths+='<circle cx="50" cy="50" r="46" fill="'+cols[i]+'"/>'; }
     else{ var x1=cx+r*Math.cos(a),y1=cy+r*Math.sin(a),x2=cx+r*Math.cos(a2),y2=cy+r*Math.sin(a2),lg=frac>0.5?1:0;
       paths+='<path d="M50,50 L'+x1.toFixed(2)+','+y1.toFixed(2)+' A46,46 0 '+lg+' 1 '+x2.toFixed(2)+','+y2.toFixed(2)+' Z" fill="'+cols[i]+'" stroke="#fff" stroke-width="1"/>'; }
+    if(frac>=0.06){ var lr=r*0.62,lx=cx+lr*Math.cos(mid),ly=cy+lr*Math.sin(mid);
+      labels+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" font-size="8" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">'+Math.round(frac*100)+'%</text>'; }
     a=a2;
   });
-  return '<svg viewBox="0 0 100 100" style="width:118px;height:118px">'+paths+'</svg>';
+  return '<svg viewBox="0 0 100 100" style="width:118px;height:118px">'+paths+labels+'</svg>';
 }
 function renderResumen(tbodyId, pieId, items, cols){
   var b=document.getElementById(tbodyId), pe=document.getElementById(pieId);
@@ -235,7 +239,7 @@ async function cargar(){
   }catch(e){err.textContent='No se pudo actualizar ('+(e.message||e)+'). Reintentando…';err.style.display='block';}
 }
 
-setPreset(0);
+setPreset('all');
 cargar();
 setInterval(cargar,60000);
 </script>
