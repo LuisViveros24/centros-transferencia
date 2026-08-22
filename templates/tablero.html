@@ -126,10 +126,11 @@
       </table></div>
     </div>
     <div>
-      <div class="note" style="margin-top:0;margin-bottom:6px;font-weight:700;color:var(--dark)">Mapa del operativo — coloreados = cubiertos · grises = faltan</div>
+      <div class="note" style="margin-top:0;margin-bottom:6px;font-weight:700;color:var(--dark)">Mapa del operativo — completos = color · en curso = claro · grises = faltan</div>
       <div id="mapa"></div>
     </div>
   </div>
+  <div id="encurso" style="margin-top:16px"></div>
   <div class="note" id="foot"></div>
 </div>
 
@@ -178,16 +179,18 @@ function renderResumen(tbodyId, pieId, items, cols){
   pe.innerHTML=svgPie(items, cols);
 }
 let MAPA=null;
-function renderMapa(covSet, col){
+function renderMapa(covSet, encSet, col){
   const cont=document.getElementById('mapa');
   if(!MAPA || !MAPA.polys || !MAPA.polys.length){ cont.innerHTML='<div class="note">Mapa no disponible.</div>'; return; }
+  encSet=encSet||new Set();
   let svg='<svg viewBox="0 0 '+MAPA.w+' '+MAPA.h+'" style="width:100%;display:block">';
   MAPA.polys.forEach(p=>{
-    const cov=covSet.has(Number(p.r)), fill=cov?(col[p.team]||'#2c3e50'):'#e3e7ec';
+    const r=Number(p.r), comp=covSet.has(r), enc=encSet.has(r), base=col[p.team]||'#2c3e50';
+    const fill=comp?base:(enc?base:'#e3e7ec'), op=comp?0.9:(enc?0.4:0.75), tc=comp?'#fff':(enc?'#2c3e50':'#8a94a3');
     const pts=p.pts.map(xy=>xy[0]+','+xy[1]).join(' ');
     const cx=p.pts.reduce((s,xy)=>s+xy[0],0)/p.pts.length, cy=p.pts.reduce((s,xy)=>s+xy[1],0)/p.pts.length;
-    svg+='<polygon points="'+pts+'" fill="'+fill+'" fill-opacity="'+(cov?0.9:0.75)+'" stroke="#fff" stroke-width="1"/>';
-    svg+='<text x="'+cx.toFixed(0)+'" y="'+cy.toFixed(0)+'" font-size="12" font-weight="bold" text-anchor="middle" dominant-baseline="middle" fill="'+(cov?'#fff':'#8a94a3')+'">R'+p.r+'</text>';
+    svg+='<polygon points="'+pts+'" fill="'+fill+'" fill-opacity="'+op+'" stroke="#fff" stroke-width="1"/>';
+    svg+='<text x="'+cx.toFixed(0)+'" y="'+cy.toFixed(0)+'" font-size="12" font-weight="bold" text-anchor="middle" dominant-baseline="middle" fill="'+tc+'">R'+p.r+'</text>';
   });
   cont.innerHTML=svg+'</svg>';
 }
@@ -195,21 +198,23 @@ function fromDict(o){return Object.entries(o||{}).sort((a,b)=>b[1]-a[1]);}
 function fromArr(a){return (a||[]).map(x=>[x.k,x.c]);}
 
 function renderPolys(poly){
-  const asig=poly.asignados||{}, cub=(poly.cubiertos||[]).map(Number), col=poly.colores||{};
+  const asig=poly.asignados||{}, col=poly.colores||{}, mz=poly.manzanas||{}, mc=poly.cubiertas||{};
   const polyTeam={}; Object.keys(asig).forEach(t=>asig[t].forEach(p=>polyTeam[Number(p)]=t));
   const all=Object.keys(polyTeam).map(Number).sort((a,b)=>a-b);
-  const covSet=new Set(cub), total=all.length||1, ncov=all.filter(p=>covSet.has(p)).length;
-  const mz=poly.manzanas||{};
   const mzOf=function(p){return Number(mz[p]!=null?mz[p]:(mz[String(p)]||0));};
-  const totMz=all.reduce((s,p)=>s+mzOf(p),0)||1, cubMz=all.filter(p=>covSet.has(p)).reduce((s,p)=>s+mzOf(p),0);
+  const cubOf=function(p){return Number(mc[p]!=null?mc[p]:(mc[String(p)]||0));};
+  const covSet=new Set(all.filter(p=>mzOf(p)>0 && cubOf(p)>=mzOf(p)));
+  const encurso=all.filter(p=>cubOf(p)>0 && cubOf(p)<mzOf(p));
+  const total=all.length||1, ncov=covSet.size;
+  const totMz=all.reduce((s,p)=>s+mzOf(p),0)||1, cubMz=all.reduce((s,p)=>s+Math.min(cubOf(p),mzOf(p)),0);
   // cajas cubiertas
   const cont=document.getElementById('polys');
   const coveredSorted=all.filter(p=>covSet.has(p));
   cont.innerHTML = coveredSorted.length ? coveredSorted.map(p=>{
     const t=polyTeam[p], c=col[t]||'#2c3e50';
     return '<div class="poly" style="background:'+c+'"><span class="r">R'+p+'</span><span class="e">Equipo '+t+'</span></div>';
-  }).join('') : '<div class="note">Aún no se marcan polígonos cubiertos.</div>';
-  document.getElementById('h-polys').textContent='Polígonos cubiertos ('+ncov+')';
+  }).join('') : '<div class="note">Aún no se completa ningún polígono.</div>';
+  document.getElementById('h-polys').textContent='Polígonos completos ('+ncov+')';
   // barra
   const pct=Math.round(ncov/total*100);
   document.getElementById('prog-fill').style.width=pct+'%';
@@ -220,12 +225,18 @@ function renderPolys(poly){
   // tabla por equipo
   const tb=document.getElementById('t-avance'); let html='';
   Object.keys(asig).sort().forEach(t=>{var ps=asig[t].map(Number),cu=ps.filter(p=>covSet.has(p)).length;
-    var tm=ps.reduce((s,p)=>s+mzOf(p),0),cm=ps.filter(p=>covSet.has(p)).reduce((s,p)=>s+mzOf(p),0);
+    var tm=ps.reduce((s,p)=>s+mzOf(p),0),cm=ps.reduce((s,p)=>s+Math.min(cubOf(p),mzOf(p)),0);
     html+='<tr><td>Equipo '+t+'</td><td class="num">'+cu+'</td><td class="num">'+ps.length+'</td><td class="num">'+(ps.length-cu)+'</td><td class="num">'+cm+'/'+tm+'</td></tr>';});
   html+='<tr class="total"><td>TOTAL</td><td class="num">'+ncov+'</td><td class="num">'+total+'</td><td class="num">'+(total-ncov)+'</td><td class="num">'+cubMz+'/'+totMz+'</td></tr>';
   tb.innerHTML=html;
-  renderMapa(covSet, col);
-  document.getElementById('foot').textContent='Avance: '+ncov+'/'+total+' polígonos ('+pct+'%) · '+cubMz+'/'+totMz+' manzanas ('+pctMz+'%). Faltan '+(total-ncov)+' polígonos.';
+  renderMapa(covSet, new Set(encurso), col);
+  var ec=document.getElementById('encurso');
+  if(encurso.length){
+    var e='<h2 style="margin-bottom:8px">Polígonos en curso — manzanas que faltan</h2><div class="card"><table><thead><tr><th>Polígono</th><th>Equipo</th><th class="num">Manzanas</th><th class="num">Faltan</th></tr></thead><tbody>';
+    encurso.slice().sort(function(a,b){return a-b;}).forEach(function(p){e+='<tr><td>R'+p+'</td><td>Equipo '+polyTeam[p]+'</td><td class="num">'+cubOf(p)+'/'+mzOf(p)+'</td><td class="num" style="font-weight:700;color:#c0392b">'+(mzOf(p)-cubOf(p))+'</td></tr>';});
+    e+='</tbody></table></div>'; ec.innerHTML=e;
+  } else { ec.innerHTML=''; }
+  document.getElementById('foot').textContent='Avance: '+ncov+'/'+total+' polígonos ('+pct+'%) · '+cubMz+'/'+totMz+' manzanas ('+pctMz+'%). Faltan '+(total-ncov)+' polígonos por completar.';
 }
 
 async function cargar(){
