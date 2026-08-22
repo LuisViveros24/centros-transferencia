@@ -22,13 +22,15 @@ def _load_geo():
         return None
 
 
-def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt, manzanas=None):
+def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubiertas=None):
     poly_team = {int(p): t for t, ps in asignados.items() for p in ps}
     allp = sorted(poly_team); total_poly = len(allp) or 1
-    cov = set(int(x) for x in cubiertos)
     mz = {int(k): int(v) for k, v in (manzanas or {}).items()}
+    mc = {int(k): int(v) for k, v in (cubiertas or {}).items()}
+    cov = set(p for p in allp if mz.get(p, 0) > 0 and mc.get(p, 0) >= mz.get(p, 0))
+    encurso = [p for p in allp if 0 < mc.get(p, 0) < mz.get(p, 0)]
     tot_mz = sum(mz.get(p, 0) for p in allp) or 1
-    cub_mz = sum(mz.get(p, 0) for p in allp if p in cov)
+    cub_mz = sum(min(mc.get(p, 0), mz.get(p, 0)) for p in allp)
     pct_mz = cub_mz / tot_mz
     tcol = {k: colors.HexColor(v) for k, v in colores.items()}
     tname = {k: 'Equipo ' + k for k in asignados}
@@ -129,7 +131,7 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt, manzanas=N
     tbody = [[P('Equipo', CB), P('Políg.', CBc), P('Asign.', CBc), P('Faltan', CBc), P('Manzanas', CBc)]]
     for k in sorted(asignados):
         ps = [int(x) for x in asignados[k]]; cub = len([p for p in ps if p in cov])
-        tmz = sum(mz.get(p, 0) for p in ps); cmz = sum(mz.get(p, 0) for p in ps if p in cov)
+        tmz = sum(mz.get(p, 0) for p in ps); cmz = sum(min(mc.get(p, 0), mz.get(p, 0)) for p in ps)
         tbody.append([P(tname[k]), P(cub, Cc), P(len(ps), Cc), P(len(ps) - cub, Cc), P('%d/%d' % (cmz, tmz), Cc)])
     tbody.append([P('TOTAL', Cb), P(ncov, Ccb), P(total_poly, Ccb), P(total_poly - ncov, Ccb), P('%d/%d' % (cub_mz, tot_mz), Ccb)])
     tav = Table(tbody, colWidths=[2.8 * cm, 1.6 * cm, 1.7 * cm, 1.5 * cm, 2.2 * cm])
@@ -138,7 +140,7 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt, manzanas=N
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]))
 
     geo = _load_geo()
-    mapa = _mapa_drawing(geo, cov, tcol, 440) if geo and geo.get('polys') else _grid_fallback(allp, poly_team, cov, tcol)
+    mapa = _mapa_drawing(geo, cov, encurso, tcol, 440) if geo and geo.get('polys') else _grid_fallback(allp, poly_team, cov, tcol)
 
     bar2 = Drawing(300, 24)
     bar2.add(Rect(0, 4, 232, 15, rx=4, ry=4, fillColor=LGREY, strokeColor=None))
@@ -148,30 +150,45 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt, manzanas=N
     izq = Table([[Paragraph('Avance por polígonos', _lbl)], [bar],
                  [Paragraph('Avance por manzanas', _lbl)], [bar2], [Spacer(1, 4)], [tav]], colWidths=[11 * cm])
     izq.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'), ('TOPPADDING', (0, 0), (-1, -1), 1), ('BOTTOMPADDING', (0, 0), (-1, -1), 1)]))
-    der = Table([[Paragraph('Mapa del operativo — coloreados = cubiertos · grises = faltan',
+    der = Table([[Paragraph('Mapa del operativo — color = completo · claro = en curso · gris = faltan',
         ParagraphStyle('x', parent=NOTE, fontName='Helvetica-Bold', textColor=DARK))], [mapa]], colWidths=[16 * cm])
     der.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
     comp = Table([[izq, der]], colWidths=[11 * cm, 16 * cm]); comp.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
     S.append(comp)
+    if encurso:
+        enc = [[P('Polígono', CB), P('Equipo', CBc), P('Manzanas', CBc), P('Faltan', CBc)]]
+        for p in sorted(encurso):
+            enc.append([P('R%d' % p), P('Equipo ' + poly_team[p], Cc), P('%d/%d' % (mc.get(p, 0), mz.get(p, 0)), Cc), P(mz.get(p, 0) - mc.get(p, 0), Cc)])
+        te = Table(enc, colWidths=[2.3 * cm, 3.2 * cm, 2.6 * cm, 2.0 * cm])
+        te.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), DARK), ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, GREY]),
+            ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#dfe4ea')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]))
+        S.append(Spacer(1, 8))
+        S.append(Paragraph('Polígonos en curso — manzanas que faltan para completarlos', H2))
+        S.append(te)
     doc.build(S)
     buf.seek(0)
     return buf.read()
 
 
-def _mapa_drawing(geo, cov, tcol, target_w=430):
+def _mapa_drawing(geo, cov, encurso, tcol, target_w=430):
     sc = target_w / float(geo['w']); dw = target_w; dh = geo['h'] * sc
-    d = Drawing(dw, dh)
+    d = Drawing(dw, dh); enc = set(encurso or [])
     for p in geo['polys']:
-        r = int(p['r']); c = r in cov
-        fill = tcol.get(p['team'], DARK) if c else colors.HexColor('#e3e7ec')
+        r = int(p['r']); base = tcol.get(p['team'], DARK)
+        if r in cov:
+            fill = base; op = 0.9; tc = colors.white
+        elif r in enc:
+            fill = base; op = 0.38; tc = DARK
+        else:
+            fill = colors.HexColor('#e3e7ec'); op = 0.75; tc = colors.HexColor('#8a94a3')
         pts = []
         for (x, y) in p['pts']:
             pts += [x * sc, dh - y * sc]
-        d.add(RLPolygon(points=pts, fillColor=fill, strokeColor=colors.white, strokeWidth=0.8, fillOpacity=(0.9 if c else 0.75)))
+        d.add(RLPolygon(points=pts, fillColor=fill, strokeColor=colors.white, strokeWidth=0.8, fillOpacity=op))
         cx = sum(pt[0] for pt in p['pts']) / len(p['pts']) * sc
         cy = dh - sum(pt[1] for pt in p['pts']) / len(p['pts']) * sc
-        d.add(String(cx, cy - 3, 'R%d' % r, fontName='Helvetica-Bold', fontSize=6.5,
-                     fillColor=(colors.white if c else colors.HexColor('#8a94a3')), textAnchor='middle'))
+        d.add(String(cx, cy - 3, 'R%d' % r, fontName='Helvetica-Bold', fontSize=6.5, fillColor=tc, textAnchor='middle'))
     return d
 
 
