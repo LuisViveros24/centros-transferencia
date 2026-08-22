@@ -110,12 +110,18 @@
   <h2>Avance del operativo</h2>
   <div class="avance">
     <div>
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px">Avance por polígonos</div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
         <div class="progress" style="flex:1"><div id="prog-fill" style="width:0%"></div></div>
         <div style="font-weight:800;color:var(--dark);white-space:nowrap" id="prog-txt">0/0</div>
       </div>
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px">Avance por manzanas</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div class="progress" style="flex:1"><div id="prog-mz-fill" style="width:0%;background:#e67e22"></div></div>
+        <div style="font-weight:800;color:var(--dark);white-space:nowrap" id="prog-mz-txt">0/0</div>
+      </div>
       <div class="card"><table>
-        <thead><tr><th>Equipo</th><th class="num">Hoy</th><th class="num">Asignados</th><th class="num">Faltan</th></tr></thead>
+        <thead><tr><th>Equipo</th><th class="num">Políg.</th><th class="num">Asign.</th><th class="num">Faltan</th><th class="num">Manzanas</th></tr></thead>
         <tbody id="t-avance"></tbody>
       </table></div>
     </div>
@@ -193,6 +199,9 @@ function renderPolys(poly){
   const polyTeam={}; Object.keys(asig).forEach(t=>asig[t].forEach(p=>polyTeam[Number(p)]=t));
   const all=Object.keys(polyTeam).map(Number).sort((a,b)=>a-b);
   const covSet=new Set(cub), total=all.length||1, ncov=all.filter(p=>covSet.has(p)).length;
+  const mz=poly.manzanas||{};
+  const mzOf=function(p){return Number(mz[p]!=null?mz[p]:(mz[String(p)]||0));};
+  const totMz=all.reduce((s,p)=>s+mzOf(p),0)||1, cubMz=all.filter(p=>covSet.has(p)).reduce((s,p)=>s+mzOf(p),0);
   // cajas cubiertas
   const cont=document.getElementById('polys');
   const coveredSorted=all.filter(p=>covSet.has(p));
@@ -205,14 +214,18 @@ function renderPolys(poly){
   const pct=Math.round(ncov/total*100);
   document.getElementById('prog-fill').style.width=pct+'%';
   document.getElementById('prog-txt').textContent=ncov+'/'+total+' ('+pct+'%)';
+  const pctMz=Math.round(cubMz/totMz*100);
+  document.getElementById('prog-mz-fill').style.width=pctMz+'%';
+  document.getElementById('prog-mz-txt').textContent=cubMz+'/'+totMz+' ('+pctMz+'%)';
   // tabla por equipo
   const tb=document.getElementById('t-avance'); let html='';
-  Object.keys(asig).sort().forEach(t=>{const ps=asig[t].map(Number),cu=ps.filter(p=>covSet.has(p)).length;
-    html+='<tr><td>Equipo '+t+'</td><td class="num">'+cu+'</td><td class="num">'+ps.length+'</td><td class="num">'+(ps.length-cu)+'</td></tr>';});
-  html+='<tr class="total"><td>TOTAL</td><td class="num">'+ncov+'</td><td class="num">'+total+'</td><td class="num">'+(total-ncov)+'</td></tr>';
+  Object.keys(asig).sort().forEach(t=>{var ps=asig[t].map(Number),cu=ps.filter(p=>covSet.has(p)).length;
+    var tm=ps.reduce((s,p)=>s+mzOf(p),0),cm=ps.filter(p=>covSet.has(p)).reduce((s,p)=>s+mzOf(p),0);
+    html+='<tr><td>Equipo '+t+'</td><td class="num">'+cu+'</td><td class="num">'+ps.length+'</td><td class="num">'+(ps.length-cu)+'</td><td class="num">'+cm+'/'+tm+'</td></tr>';});
+  html+='<tr class="total"><td>TOTAL</td><td class="num">'+ncov+'</td><td class="num">'+total+'</td><td class="num">'+(total-ncov)+'</td><td class="num">'+cubMz+'/'+totMz+'</td></tr>';
   tb.innerHTML=html;
   renderMapa(covSet, col);
-  document.getElementById('foot').textContent='Hoy se cubrieron '+ncov+' de '+total+' polígonos ('+pct+'%). Faltan '+(total-ncov)+'.';
+  document.getElementById('foot').textContent='Avance: '+ncov+'/'+total+' polígonos ('+pct+'%) · '+cubMz+'/'+totMz+' manzanas ('+pctMz+'%). Faltan '+(total-ncov)+' polígonos.';
 }
 
 async function cargar(){

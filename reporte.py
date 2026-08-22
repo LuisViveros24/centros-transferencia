@@ -22,10 +22,14 @@ def _load_geo():
         return None
 
 
-def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
+def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt, manzanas=None):
     poly_team = {int(p): t for t, ps in asignados.items() for p in ps}
     allp = sorted(poly_team); total_poly = len(allp) or 1
     cov = set(int(x) for x in cubiertos)
+    mz = {int(k): int(v) for k, v in (manzanas or {}).items()}
+    tot_mz = sum(mz.get(p, 0) for p in allp) or 1
+    cub_mz = sum(mz.get(p, 0) for p in allp if p in cov)
+    pct_mz = cub_mz / tot_mz
     tcol = {k: colors.HexColor(v) for k, v in colores.items()}
     tname = {k: 'Equipo ' + k for k in asignados}
 
@@ -122,12 +126,13 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
     bar.add(Rect(0, 4, 232, 15, rx=4, ry=4, fillColor=LGREY, strokeColor=None))
     bar.add(Rect(0, 4, 232 * pct, 15, rx=4, ry=4, fillColor=colors.HexColor('#27ae60'), strokeColor=None))
     bar.add(String(240, 8, '%d/%d (%d%%)' % (ncov, total_poly, round(pct * 100)), fontName='Helvetica-Bold', fontSize=10, fillColor=DARK))
-    tbody = [[P('Equipo', CB), P('Hoy', CBc), P('Asignados', CBc), P('Faltan', CBc)]]
+    tbody = [[P('Equipo', CB), P('Políg.', CBc), P('Asign.', CBc), P('Faltan', CBc), P('Manzanas', CBc)]]
     for k in sorted(asignados):
         ps = [int(x) for x in asignados[k]]; cub = len([p for p in ps if p in cov])
-        tbody.append([P(tname[k]), P(cub, Cc), P(len(ps), Cc), P(len(ps) - cub, Cc)])
-    tbody.append([P('TOTAL', Cb), P(ncov, Ccb), P(total_poly, Ccb), P(total_poly - ncov, Ccb)])
-    tav = Table(tbody, colWidths=[3.4 * cm, 1.7 * cm, 2.4 * cm, 1.8 * cm])
+        tmz = sum(mz.get(p, 0) for p in ps); cmz = sum(mz.get(p, 0) for p in ps if p in cov)
+        tbody.append([P(tname[k]), P(cub, Cc), P(len(ps), Cc), P(len(ps) - cub, Cc), P('%d/%d' % (cmz, tmz), Cc)])
+    tbody.append([P('TOTAL', Cb), P(ncov, Ccb), P(total_poly, Ccb), P(total_poly - ncov, Ccb), P('%d/%d' % (cub_mz, tot_mz), Ccb)])
+    tav = Table(tbody, colWidths=[2.8 * cm, 1.6 * cm, 1.7 * cm, 1.5 * cm, 2.2 * cm])
     tav.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), DARK), ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, GREY]),
         ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#dfe6ec')), ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#dfe4ea')),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]))
@@ -135,7 +140,14 @@ def construir_reporte(rows, asignados, cubiertos, colores, fecha_txt):
     geo = _load_geo()
     mapa = _mapa_drawing(geo, cov, tcol, 440) if geo and geo.get('polys') else _grid_fallback(allp, poly_team, cov, tcol)
 
-    izq = Table([[bar], [Spacer(1, 6)], [tav]], colWidths=[11 * cm]); izq.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
+    bar2 = Drawing(300, 24)
+    bar2.add(Rect(0, 4, 232, 15, rx=4, ry=4, fillColor=LGREY, strokeColor=None))
+    bar2.add(Rect(0, 4, 232 * pct_mz, 15, rx=4, ry=4, fillColor=colors.HexColor('#e67e22'), strokeColor=None))
+    bar2.add(String(240, 8, '%d/%d (%d%%)' % (cub_mz, tot_mz, round(pct_mz * 100)), fontName='Helvetica-Bold', fontSize=10, fillColor=DARK))
+    _lbl = ParagraphStyle('lbl', parent=NOTE, fontName='Helvetica-Bold', textColor=DARK, fontSize=8.5)
+    izq = Table([[Paragraph('Avance por polígonos', _lbl)], [bar],
+                 [Paragraph('Avance por manzanas', _lbl)], [bar2], [Spacer(1, 4)], [tav]], colWidths=[11 * cm])
+    izq.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'), ('TOPPADDING', (0, 0), (-1, -1), 1), ('BOTTOMPADDING', (0, 0), (-1, -1), 1)]))
     der = Table([[Paragraph('Mapa del operativo — coloreados = cubiertos · grises = faltan',
         ParagraphStyle('x', parent=NOTE, fontName='Helvetica-Bold', textColor=DARK))], [mapa]], colWidths=[16 * cm])
     der.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
