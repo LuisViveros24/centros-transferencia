@@ -773,8 +773,9 @@ def dashboard_domicilios():
                     "SELECT "
                     "COUNT(*) FILTER (WHERE COALESCE(cumplido,false) AND NOT COALESCE(incumplimiento,false)) cumplidos, "
                     "COUNT(*) FILTER (WHERE COALESCE(cumplido,false) AND COALESCE(incumplimiento,false)) incumplimientos, "
-                    "COUNT(*) FILTER (WHERE multa IS TRUE) con_multa, "
-                    "COUNT(*) FILTER (WHERE multa IS FALSE) sin_multa, "
+                    # Multa aplica solo a amonestaciones (los notificados no cuentan en el desglose)
+                    "COUNT(*) FILTER (WHERE multa IS TRUE AND TRIM(COALESCE(accion,''))='Amonestado') con_multa, "
+                    "COUNT(*) FILTER (WHERE multa IS FALSE AND TRIM(COALESCE(accion,''))='Amonestado') sin_multa, "
                     "COUNT(*) FILTER (WHERE COALESCE(canalizado_ingresos,false)) canalizados "
                     "FROM domicilios" + base_where, params)
                 pcfg = {r['clave']: r['valor'] for r in qa(
