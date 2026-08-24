@@ -1109,9 +1109,10 @@ async function renderPlazos(){
       : r.estado_plazo === 'cumplido'
       ? '<span style="background:rgba(34,197,94,.18);color:#22c55e;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">Cumplido</span>'
       : '<span style="background:rgba(245,158,11,.18);color:#f59e0b;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">Por vencer</span>';
-    const accion = r.estado_plazo === 'cumplido'
+    const verPdf = r.has_pdf ? '<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;margin-right:6px" onclick="verPdfDom(' + r.id + ')">Ver PDF</button>' : '';
+    const accion = verPdf + (r.estado_plazo === 'cumplido'
       ? '<span style="color:var(--text2);font-size:12px" title="' + escHtml(r.cumplido_obs||'') + '">✓ ' + (r.cumplido_por ? escHtml(r.cumplido_por) : 'cumplido') + '</span>'
-      : '<button class="btn btn-primary" style="padding:4px 10px;font-size:12px" onclick="abrirModalPlazo(' + r.id + ', \'' + String(r.folio).replace(/'/g,"") + '\')">Confirmar</button>';
+      : '<button class="btn btn-primary" style="padding:4px 10px;font-size:12px" onclick="abrirModalPlazo(' + r.id + ', \'' + String(r.folio).replace(/'/g,"") + '\')">Confirmar</button>');
     return '<tr>' +
       '<td class="mono">' + escHtml(r.folio) + '</td>' +
       '<td>' + fechaDisplay(r.fecha) + '</td>' +
@@ -1125,6 +1126,7 @@ async function renderPlazos(){
     '</tr>';
   }).join('');
 }
+function verPdfDom(id){ window.open(location.origin + '/api/domicilios/' + id + '/pdf?inline=1', '_blank'); }
 function abrirModalPlazo(id, folio){
   _plModalId = id;
   document.getElementById('pl-modal-sub').textContent = 'Domicilio ' + folio;
