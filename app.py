@@ -940,6 +940,52 @@ def reporte_domicilios_pdf():
     return send_file(io.BytesIO(pdf), mimetype='application/pdf', as_attachment=True,
                      download_name='Reporte_Operativo_' + desde + '.pdf')
 
+@app.route('/api/operativo/poligonos', methods=['GET'])
+@requiere_admin
+def operativo_poligonos():
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT clave, valor FROM config WHERE clave LIKE 'poligonos_%%' OR clave LIKE 'manzanas_%%'")
+                pcfg = {r['clave']: r['valor'] for r in cur.fetchall()}
+    finally:
+        conn.close()
+    return jsonify(_poligonos_payload(pcfg))
+
+@app.route('/api/operativo/manzanas', methods=['POST'])
+@requiere_admin
+def set_manzanas_cubiertas():
+    d = request.get_json(silent=True) or {}
+    pol = str(d.get('poligono', '')).strip()
+    try:
+        val = int(d.get('cubiertas'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'cubiertas debe ser un número'}), 400
+    if not pol:
+        return jsonify({'error': 'Falta el polígono'}), 400
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT clave, valor FROM config WHERE clave IN ('poligonos_cubiertos','manzanas_por_poligono','manzanas_cubiertas')")
+                pcfg = {r['clave']: r['valor'] for r in cur.fetchall()}
+                mz = json.loads(pcfg['manzanas_por_poligono']) if pcfg.get('manzanas_por_poligono') else MANZANAS_DEFAULT
+                total = int(mz.get(pol, 0))
+                if total <= 0:
+                    return jsonify({'error': 'Polígono desconocido'}), 400
+                val = max(0, min(val, total))
+                if pcfg.get('manzanas_cubiertas'):
+                    mc = json.loads(pcfg['manzanas_cubiertas'])
+                else:
+                    cub_list = json.loads(pcfg['poligonos_cubiertos']) if pcfg.get('poligonos_cubiertos') else POLY_CUBIERTOS
+                    mc = {str(p): mz.get(str(p), 0) for p in cub_list}
+                mc[pol] = val
+                cur.execute("INSERT INTO config VALUES ('manzanas_cubiertas', %s) ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor", [json.dumps(mc)])
+    finally:
+        conn.close()
+    return jsonify({'ok': True, 'poligono': pol, 'cubiertas': val, 'total': total})
+
 @app.route('/api/operativo/mapa', methods=['GET'])
 @requiere_tablero
 def operativo_mapa():

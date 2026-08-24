@@ -242,6 +242,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
       Plazos
     </button>
+    <button class="nav-item" onclick="goTo('avance',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+      Avance polígonos
+    </button>
   </nav>
 
   <main class="content">
@@ -770,6 +774,13 @@
       </div>
     </div>
 
+    <div id="page-avance" class="page">
+      <div class="page-title">Avance de polígonos (manzanas)</div>
+      <div class="page-sub">Marca cuántas manzanas se han cubierto en cada polígono. Se guarda solo y se refleja en el tablero del jefe.</div>
+      <div id="avance-resumen" class="card" style="padding:12px 14px;margin-bottom:14px;font-weight:600">—</div>
+      <div id="avance-lista"></div>
+    </div>
+
   </main>
 </div>
 
@@ -803,7 +814,7 @@ async function api(path, opts={}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(path, {
+    const res = await fetch((path && path[0] === '/' ? location.origin + path : path), {
       headers: {'Content-Type':'application/json'},
       ...fetchOpts,
       signal: controller.signal
@@ -839,7 +850,7 @@ function closeSidebar() {
 
 function goTo(page, btn) {
   // El rol captura no navega a las vistas de análisis (el backend las protege igual)
-  if (ROL !== 'admin' && (page === 'dashboard' || page === 'historial' || page === 'domicilios-hist' || page === 'plazos')) return;
+  if (ROL !== 'admin' && (page === 'dashboard' || page === 'historial' || page === 'domicilios-hist' || page === 'plazos' || page === 'avance')) return;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
@@ -853,6 +864,7 @@ function goTo(page, btn) {
   if (page === 'historial') renderHistorial();
   if (page === 'domicilios-hist') renderDomicilios();
   if (page === 'plazos') renderPlazos();
+  if (page === 'avance') renderAvancePoligonos();
   if (page === 'domicilio' && !document.getElementById('dom-fecha').value) {
     document.getElementById('dom-fecha').value = todayStr();
   }
@@ -1134,6 +1146,47 @@ async function guardarCumplimiento(){
   finally { btn.disabled = false; btn.textContent = 'Confirmar cumplido'; }
 }
 
+// ── Panel de avance de polígonos (manzanas cubiertas) ──────────
+async function renderAvancePoligonos(){
+  var data;
+  try { data = await api('/api/operativo/poligonos'); }
+  catch(e){ toast('No se pudo cargar el avance de polígonos.'); return; }
+  var asig=data.asignados||{}, mz=data.manzanas||{}, mc=data.cubiertas||{}, col=data.colores||{};
+  var mzOf=function(p){return Number(mz[p]!=null?mz[p]:(mz[String(p)]||0));};
+  var cubOf=function(p){return Number(mc[p]!=null?mc[p]:(mc[String(p)]||0));};
+  var totMz=0, cubMz=0, html='';
+  Object.keys(asig).sort().forEach(function(t){
+    var c=col[t]||'#2c3e50';
+    html+='<div class="card" style="margin-bottom:14px"><div style="padding:9px 14px;font-weight:700;border-bottom:1px solid var(--line);border-left:4px solid '+c+'">Equipo '+t+'</div><div style="display:flex;flex-wrap:wrap;gap:10px;padding:12px 14px">';
+    asig[t].slice().sort(function(a,b){return a-b;}).forEach(function(p){
+      var total=mzOf(p), cub=cubOf(p); totMz+=total; cubMz+=Math.min(cub,total);
+      var done=total>0 && cub>=total;
+      html+='<div style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:158px;'+(done?'background:rgba(39,174,96,.08)':'')+'">'
+        +'<div style="font-weight:700;color:'+c+'">R'+p+(done?' <span style="color:var(--verde,#27ae60);font-size:11px">✓ completo</span>':'')+'</div>'
+        +'<div style="display:flex;align-items:center;gap:6px;margin-top:6px">'
+        +'<button class="btn btn-ghost" style="padding:2px 9px" onclick="setMz('+p+','+(cub-1)+')">−</button>'
+        +'<input type="number" id="mz-'+p+'" min="0" max="'+total+'" value="'+cub+'" style="width:54px;text-align:center" onchange="setMz('+p+',this.value)">'
+        +'<span style="color:var(--text2)">/ '+total+'</span>'
+        +'<button class="btn btn-ghost" style="padding:2px 9px" onclick="setMz('+p+','+(cub+1)+')">+</button>'
+        +'</div>'
+        +'<div style="margin-top:7px;display:flex;gap:6px"><button class="btn" style="padding:2px 9px;font-size:12px" onclick="setMz('+p+','+total+')">Completo</button><button class="btn" style="padding:2px 9px;font-size:12px" onclick="setMz('+p+',0)">Reiniciar</button></div>'
+        +'</div>';
+    });
+    html+='</div></div>';
+  });
+  document.getElementById('avance-lista').innerHTML=html;
+  var pctMz=totMz?Math.round(cubMz/totMz*100):0;
+  document.getElementById('avance-resumen').textContent='Avance total por manzanas: '+cubMz+' / '+totMz+' ('+pctMz+'%)';
+}
+async function setMz(pol, val){
+  val=Math.max(0, parseInt(val,10)||0);
+  try {
+    var r=await api('/api/operativo/manzanas',{method:'POST',body:JSON.stringify({poligono:String(pol),cubiertas:val})});
+    toast('R'+pol+': '+r.cubiertas+'/'+r.total+' manzanas');
+    renderAvancePoligonos();
+  } catch(e){ toast('No se pudo guardar el avance.'); }
+}
+
 async function initRol() {
   try {
     ROL = (await api('/api/whoami')).rol;
@@ -1148,6 +1201,8 @@ async function initRol() {
     if (navDomHist) navDomHist.style.display = 'none';
     const navPlazos = document.querySelector('button[onclick*="plazos"]');
     if (navPlazos) navPlazos.style.display = 'none';
+    const navAvance = document.querySelector('button[onclick*="avance"]');
+    if (navAvance) navAvance.style.display = 'none';
   }
 }
 
