@@ -681,7 +681,8 @@ def get_domicilio_pdf(rid):
     data = row['foto_pdf']
     if isinstance(data, memoryview):
         data = data.tobytes()
-    return send_file(io.BytesIO(bytes(data)), as_attachment=True,
+    inline = bool(request.args.get('inline'))
+    return send_file(io.BytesIO(bytes(data)), as_attachment=(not inline),
                      download_name=f"{row['folio']}_fotos.pdf",
                      mimetype='application/pdf')
 
@@ -857,6 +858,7 @@ def api_plazos():
                 cur.execute(
                     "SELECT id, folio, folio_acta, fecha, direccion, uso, nombre_comercio, "
                     "estado, problematica, accion, equipo, plazo_horas, obs, "
+                    "(foto_pdf IS NOT NULL) AS has_pdf, "
                     "COALESCE(cumplido,false) AS cumplido, cumplido_en, cumplido_obs, cumplido_por, "
                     + SQL_LIMITE + " AS limite, "
                     "(" + SQL_LIMITE + " IS NOT NULL AND " + SQL_LIMITE + " < now()) AS vencido "
