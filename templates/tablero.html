@@ -96,6 +96,15 @@
     <div class="kpi"><div class="n" id="k-venc" style="color:#c0392b">0</div><div class="l">Plazos vencidos</div></div>
   </div>
 
+  <h2>Resultado de plazos</h2>
+  <div class="kpis">
+    <div class="kpi"><div class="n" id="k-pl-cumpl" style="color:#27ae60">0</div><div class="l">Cumplidos</div></div>
+    <div class="kpi"><div class="n" id="k-pl-incumpl" style="color:#c0392b">0</div><div class="l">Incumplimientos</div></div>
+    <div class="kpi"><div class="n" id="k-pl-multa">0</div><div class="l">Con multa</div></div>
+    <div class="kpi"><div class="n" id="k-pl-sinmulta">0</div><div class="l">Sin multa</div></div>
+    <div class="kpi"><div class="n" id="k-pl-canal" style="color:#1a6fc4">0</div><div class="l">Canalizados a Ingresos</div></div>
+  </div>
+
   <h2>Resumen del día</h2>
   <div class="cards3">
     <div class="card"><table><thead><tr><th>Por equipo</th><th class="num">Cantidad</th></tr></thead><tbody id="t-eq"></tbody></table><div class="pie" id="pie-eq"></div></div>
@@ -252,6 +261,11 @@ async function cargar(){
     document.getElementById('k-amon').textContent=(d.por_accion||{})['Amonestado']||0;
     document.getElementById('k-mult').textContent=(d.por_accion||{})['Multado']||0;
     document.getElementById('k-venc').textContent=d.vencidos||0;
+    document.getElementById('k-pl-cumpl').textContent=d.plazos_cumplidos||0;
+    document.getElementById('k-pl-incumpl').textContent=d.plazos_incumplimientos||0;
+    document.getElementById('k-pl-multa').textContent=d.plazos_con_multa||0;
+    document.getElementById('k-pl-sinmulta').textContent=d.plazos_sin_multa||0;
+    document.getElementById('k-pl-canal').textContent=d.plazos_canalizados||0;
     var eqIt=fromArr(d.por_equipo).map(([k,v])=>[eqCorto(k),v]);
     renderResumen('t-eq','pie-eq', eqIt, colorsFor('eq', eqIt));
     var prIt=fromArr(d.por_problematica);

@@ -768,6 +768,15 @@ def dashboard_domicilios():
                     "COUNT(*) FILTER (WHERE NOT COALESCE(cumplido,false) AND lim IS NOT NULL AND lim < now()) v, "
                     "COUNT(*) FILTER (WHERE NOT COALESCE(cumplido,false) AND lim IS NOT NULL AND lim >= now()) p "
                     "FROM (SELECT cumplido, " + SQL_LIMITE + " lim FROM domicilios" + base_where + ") t", params)
+                # Resultados de plazos (solo datos numéricos para el tablero del jefe)
+                res_plazos = q1(
+                    "SELECT "
+                    "COUNT(*) FILTER (WHERE COALESCE(cumplido,false) AND NOT COALESCE(incumplimiento,false)) cumplidos, "
+                    "COUNT(*) FILTER (WHERE COALESCE(cumplido,false) AND COALESCE(incumplimiento,false)) incumplimientos, "
+                    "COUNT(*) FILTER (WHERE multa IS TRUE) con_multa, "
+                    "COUNT(*) FILTER (WHERE multa IS FALSE) sin_multa, "
+                    "COUNT(*) FILTER (WHERE COALESCE(canalizado_ingresos,false)) canalizados "
+                    "FROM domicilios" + base_where, params)
                 pcfg = {r['clave']: r['valor'] for r in qa(
                     "SELECT clave, valor FROM config WHERE clave IN ('poligonos_asignados','poligonos_cubiertos','manzanas_por_poligono','manzanas_cubiertas')")}
     finally:
@@ -794,6 +803,11 @@ def dashboard_domicilios():
         'equipos': list(EQUIPOS),
         'vencidos': venc.get('v', 0) if venc else 0,
         'por_vencer': venc.get('p', 0) if venc else 0,
+        'plazos_cumplidos': res_plazos.get('cumplidos', 0) if res_plazos else 0,
+        'plazos_incumplimientos': res_plazos.get('incumplimientos', 0) if res_plazos else 0,
+        'plazos_con_multa': res_plazos.get('con_multa', 0) if res_plazos else 0,
+        'plazos_sin_multa': res_plazos.get('sin_multa', 0) if res_plazos else 0,
+        'plazos_canalizados': res_plazos.get('canalizados', 0) if res_plazos else 0,
         'poligonos': _poligonos_payload(pcfg),
     })
 
