@@ -7,7 +7,7 @@ from reportlab.lib.pagesizes import letter, landscape
 from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
 from reportlab.graphics.shapes import Drawing, Rect, String, Polygon as RLPolygon
 from reportlab.graphics.charts.piecharts import Pie
 
@@ -22,7 +22,7 @@ def _load_geo():
         return None
 
 
-def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubiertas=None):
+def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubiertas=None, seguimiento=None):
     poly_team = {int(p): t for t, ps in asignados.items() for p in ps}
     allp = sorted(poly_team); total_poly = len(allp) or 1
     mz = {int(k): int(v) for k, v in (manzanas or {}).items()}
@@ -35,15 +35,18 @@ def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubier
     tcol = {k: colors.HexColor(v) for k, v in colores.items()}
     tname = {k: 'Equipo ' + k for k in asignados}
 
-    por_eq = {}; por_prob = {}; por_uso = {}
+    por_eq = {}; por_prob = {}; por_uso = {}; multa_prob = {}
     for r in rows:
         k = (r.get('equipo') or '—').split(' · ')[0]
         por_eq[k] = por_eq.get(k, 0) + 1
         por_uso[r.get('uso') or 'Ambos'] = por_uso.get(r.get('uso') or 'Ambos', 0) + 1
+        es_multa = (r.get('multa') is True) and (str(r.get('accion') or '').strip() == 'Amonestado')
         for p in (r.get('problematica') or '').split(','):
             p = p.strip().split(':')[0].strip()
             if p:
                 por_prob[p] = por_prob.get(p, 0) + 1
+                if es_multa:
+                    multa_prob[p] = multa_prob.get(p, 0) + 1
 
     st = getSampleStyleSheet()
     H1 = ParagraphStyle('h1', parent=st['Title'], fontSize=16, textColor=DARK, spaceAfter=2)
@@ -119,6 +122,36 @@ def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubier
     resumen.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
     S.append(resumen)
     S.append(Paragraph('Nota: un solo predio puede presentar 2 o más problemáticas.', NOTE))
+
+    # Seguimiento de plazos (numérico) + multas por problemática
+    if seguimiento is not None:
+        seg_block = [Paragraph('Seguimiento de plazos', H2)]
+        seg_items = [
+            ('Amonestaciones por verificar', seguimiento.get('vencidos', 0)),
+            ('Cumplidos', seguimiento.get('cumplidos', 0)),
+            ('Incumplimientos', seguimiento.get('incumplimientos', 0)),
+            ('Con multa', seguimiento.get('con_multa', 0)),
+            ('Sin multa', seguimiento.get('sin_multa', 0)),
+            ('Canalizados a Ingresos', seguimiento.get('canalizados', 0)),
+        ]
+        seg_body = [[P('Concepto', CB), P('Cantidad', CBc)]]
+        for k, v in seg_items:
+            seg_body.append([P(k, C), P(v, Cc)])
+        seg_t = Table(seg_body, colWidths=[6.2 * cm, 2.4 * cm])
+        seg_t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), DARK), ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, GREY]),
+            ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#dfe4ea')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 2.5), ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5)]))
+        if multa_prob:
+            m_items = sorted(multa_prob.items(), key=lambda x: -x[1])
+            multas_col = mini('Multas por problemática', m_items, _cols('Multas por problemática', m_items))
+        else:
+            multas_col = Paragraph('Sin multas registradas en el periodo.', NOTE)
+        seg_row = Table([[seg_t, multas_col]], colWidths=[9.0 * cm, 8.0 * cm])
+        seg_row.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
+        seg_block.append(seg_row)
+        seg_block.append(Paragraph('Nota: un mismo caso puede llevar multa o no y ser canalizado a Ingresos por abandono. Las multas se cuentan por cada problemática del folio.', NOTE))
+        S.append(PageBreak())
+        S.extend(seg_block)
 
     # Avance del operativo (página 2)
     S.append(PageBreak())

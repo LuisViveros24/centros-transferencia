@@ -1029,12 +1029,37 @@ def reporte_domicilios_pdf():
     try:
         with conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute("SELECT equipo, uso, problematica FROM domicilios" + where, params)
+                cur.execute(
+                    "SELECT equipo, uso, problematica, accion, "
+                    "COALESCE(cumplido,false) cumplido, COALESCE(incumplimiento,false) incumplimiento, "
+                    "multa, COALESCE(canalizado_ingresos,false) canalizado_ingresos "
+                    "FROM domicilios" + where, params)
                 rows = [dict(r) for r in cur.fetchall()]
+                # Amonestaciones por verificar = plazos vencidos sin cerrar (mismo criterio que el tablero)
+                cur.execute(
+                    "SELECT COUNT(*) v FROM (SELECT cumplido, " + SQL_LIMITE
+                    + " lim FROM domicilios" + where + ") t "
+                    "WHERE NOT COALESCE(cumplido,false) AND lim IS NOT NULL AND lim < now()", params)
+                _venc = cur.fetchone()['v']
                 cur.execute("SELECT clave, valor FROM config WHERE clave IN ('poligonos_asignados','poligonos_cubiertos','manzanas_por_poligono','manzanas_cubiertas')")
                 pcfg = {r['clave']: r['valor'] for r in cur.fetchall()}
     finally:
         conn.close()
+    # Conteos de seguimiento (numéricos) para el PDF
+    seguimiento = {'vencidos': _venc, 'cumplidos': 0, 'incumplimientos': 0,
+                   'con_multa': 0, 'sin_multa': 0, 'canalizados': 0}
+    for r in rows:
+        amon = str(r.get('accion') or '').strip() == 'Amonestado'
+        if r['cumplido'] and not r['incumplimiento']:
+            seguimiento['cumplidos'] += 1
+        if r['cumplido'] and r['incumplimiento']:
+            seguimiento['incumplimientos'] += 1
+        if r.get('multa') is True and amon:
+            seguimiento['con_multa'] += 1
+        if r.get('multa') is False and amon:
+            seguimiento['sin_multa'] += 1
+        if r['canalizado_ingresos']:
+            seguimiento['canalizados'] += 1
     _pol = _poligonos_payload(pcfg)
     _MES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
     def _fmt(s):
@@ -1046,7 +1071,7 @@ def reporte_domicilios_pdf():
     else:
         fecha_txt = _fmt(desde) + ' al ' + _fmt(hasta)
     from reporte import construir_reporte
-    pdf = construir_reporte(rows, _pol['asignados'], POLY_COLORS, fecha_txt, _pol['manzanas'], _pol['cubiertas'])
+    pdf = construir_reporte(rows, _pol['asignados'], POLY_COLORS, fecha_txt, _pol['manzanas'], _pol['cubiertas'], seguimiento=seguimiento)
     return send_file(io.BytesIO(pdf), mimetype='application/pdf', as_attachment=True,
                      download_name='Reporte_Operativo_' + desde + '.pdf')
 
