@@ -100,7 +100,9 @@ def init_db():
                                     ('obs','TEXT'), ('foto_pdf','BYTEA'),
                                     ('cumplido','BOOLEAN'), ('cumplido_en','TIMESTAMP'),
                                     ('cumplido_obs','TEXT'), ('cumplido_por','TEXT'),
-                                    ('multa','BOOLEAN')):
+                                    ('multa','BOOLEAN'),
+                                    ('canalizado_ingresos','BOOLEAN'),
+                                    ('canalizado_en','TIMESTAMP'), ('canalizado_por','TEXT')):
                     cur.execute(f'ALTER TABLE domicilios ADD COLUMN IF NOT EXISTS {_col} {_tipo}')
                 cur.execute(
                     "INSERT INTO config VALUES ('folio_base','1') ON CONFLICT DO NOTHING"
@@ -861,6 +863,7 @@ def api_plazos():
                     "estado, problematica, accion, equipo, plazo_horas, obs, "
                     "(foto_pdf IS NOT NULL) AS has_pdf, "
                     "COALESCE(cumplido,false) AS cumplido, cumplido_en, cumplido_obs, cumplido_por, multa, "
+                    "COALESCE(canalizado_ingresos,false) AS canalizado_ingresos, "
                     + SQL_LIMITE + " AS limite, "
                     "(" + SQL_LIMITE + " IS NOT NULL AND " + SQL_LIMITE + " < now()) AS vencido "
                     "FROM domicilios " + where + " ORDER BY folio ASC",
@@ -888,6 +891,7 @@ def cumplir_domicilio(rid):
     obs = (d.get('obs') or '').strip()
     multa = d.get('multa')
     multa = bool(multa) if multa is not None else None
+    canalizar = bool(d.get('canalizar'))
     por = (request.authorization.username if request.authorization else '') or ''
     conn = get_db()
     try:
@@ -895,13 +899,82 @@ def cumplir_domicilio(rid):
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE domicilios SET cumplido=TRUE, cumplido_en=now(), "
-                    "cumplido_obs=%s, cumplido_por=%s, multa=%s WHERE id=%s",
-                    (obs, por, multa, rid))
+                    "cumplido_obs=%s, cumplido_por=%s, multa=%s, "
+                    "canalizado_ingresos=%s, "
+                    "canalizado_en = CASE WHEN %s THEN now() ELSE NULL END, "
+                    "canalizado_por = CASE WHEN %s THEN %s ELSE NULL END "
+                    "WHERE id=%s",
+                    (obs, por, multa, canalizar, canalizar, canalizar, por, rid))
                 if cur.rowcount == 0:
                     return jsonify({'error': 'Domicilio no encontrado'}), 404
     finally:
         conn.close()
     return jsonify({'ok': True})
+
+@app.route('/api/canalizados', methods=['GET'])
+@requiere_admin
+def api_canalizados():
+    """Predios canalizados a Ingresos (por deshabitado). Solo admin. Orden por folio."""
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT id, folio, folio_acta, fecha, direccion, uso, nombre_comercio, "
+                    "estado, problematica, equipo, lat, lng, "
+                    "(foto_pdf IS NOT NULL) AS has_pdf, "
+                    "canalizado_en, canalizado_por, cumplido_obs "
+                    "FROM domicilios WHERE canalizado_ingresos = TRUE ORDER BY folio ASC")
+                rows = [dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+    return jsonify(rows)
+
+@app.route('/api/export/excel/canalizados', methods=['GET'])
+@requiere_admin
+def export_excel_canalizados():
+    """Excel de predios canalizados a Ingresos. Solo admin."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT folio, folio_acta, fecha, direccion, uso, nombre_comercio, "
+                    "estado, problematica, equipo, lat, lng, "
+                    "canalizado_en, canalizado_por, cumplido_obs "
+                    "FROM domicilios WHERE canalizado_ingresos = TRUE ORDER BY folio ASC")
+                rows = cur.fetchall()
+    finally:
+        conn.close()
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = 'Canalizados a Ingresos'
+    headers = ['Folio captura', 'Folio acta física', 'Fecha inspección', 'Dirección',
+               'Uso del predio', 'Nombre del comercio', 'Estado del predio',
+               'Problemática', 'Equipo', 'Ubicación (lat, lng)',
+               'Canalizado el', 'Canalizado por', 'Observación / resolución']
+    header_fill = PatternFill(fill_type='solid', fgColor='1a6fc4')
+    header_font = Font(bold=True, color='FFFFFF')
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.fill = header_fill; cell.font = header_font
+        cell.alignment = Alignment(horizontal='center')
+    for r in rows:
+        coords = f"{r['lat']}, {r['lng']}" if (r.get('lat') is not None and r.get('lng') is not None) else ''
+        ws.append([
+            r['folio'], r.get('folio_acta', ''), r['fecha'], r['direccion'],
+            r['uso'], r.get('nombre_comercio', ''), r['estado'],
+            r['problematica'], r.get('equipo', ''), coords,
+            r['canalizado_en'].strftime('%Y-%m-%d %H:%M') if r.get('canalizado_en') else '',
+            r.get('canalizado_por', '') or '', r.get('cumplido_obs', '') or ''
+        ])
+    col_widths = [12, 14, 14, 34, 16, 24, 18, 22, 12, 22, 18, 16, 34]
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                     download_name='canalizados_ingresos.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 @app.route('/api/reporte/domicilios.pdf', methods=['GET'])
 @requiere_tablero

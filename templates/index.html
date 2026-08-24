@@ -242,6 +242,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
       Plazos
     </button>
+    <button class="nav-item" onclick="goTo('canalizados',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h13l-3-3M21 17H8l3 3"/><rect x="2" y="10" width="6" height="4" rx="1"/></svg>
+      Canalizados a Ingresos
+    </button>
     <button class="nav-item" onclick="goTo('avance',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
       Avance polígonos
@@ -775,6 +779,32 @@
       </div>
     </div>
 
+    <div id="page-canalizados" class="page">
+      <div class="table-header">
+        <div>
+          <div class="table-title">Canalizados a Ingresos</div>
+          <div class="page-sub" style="margin:2px 0 0">Predios canalizados a Ingresos (por estar deshabitados). Ordenados por folio.</div>
+        </div>
+        <div class="table-actions">
+          <span class="count-pill" id="can-count">0 predios</span>
+          <button class="btn btn-ghost" onclick="renderCanalizados()">Actualizar</button>
+          <button class="btn btn-ghost" onclick="exportarExcelCanalizados()">Descargar Excel</button>
+        </div>
+      </div>
+      <div class="card">
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th>Folio</th><th>Dirección</th><th>Uso · Estado</th><th>Equipo</th>
+              <th>Problemática</th><th>Ubicación</th><th>Canalizado</th>
+              <th style="text-align:center">PDF</th>
+            </tr></thead>
+            <tbody id="can-body"><tr><td colspan="8" style="text-align:center;color:var(--text2);padding:20px">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div id="page-avance" class="page">
       <div class="page-title">Avance de polígonos (manzanas)</div>
       <div class="page-sub">Marca cuántas manzanas se han cubierto en cada polígono. Se guarda solo y se refleja en el tablero del jefe.</div>
@@ -796,6 +826,10 @@
       <button type="button" class="btn btn-ghost pl-multa-opt" data-multa="si" onclick="setMulta('si')" style="flex:1;padding:8px;font-size:13px">Sí, con multa</button>
       <button type="button" class="btn btn-ghost pl-multa-opt" data-multa="no" onclick="setMulta('no')" style="flex:1;padding:8px;font-size:13px">No, sin multa</button>
     </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;cursor:pointer">
+      <input type="checkbox" id="pl-modal-canalizar" style="width:16px;height:16px;cursor:pointer">
+      <span>Canalizar a <strong>Ingresos</strong> (predio deshabitado)</span>
+    </label>
     <label style="font-size:12px;color:var(--text2)">Observaciones / resolución</label>
     <textarea id="pl-modal-obs" maxlength="500" style="width:100%;min-height:92px;margin-top:4px" placeholder="Ej. Se verificó en sitio; el predio fue limpiado / el comercio atendió la notificación..."></textarea>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
@@ -856,7 +890,7 @@ function closeSidebar() {
 
 function goTo(page, btn) {
   // El rol captura no navega a las vistas de análisis (el backend las protege igual)
-  if (ROL !== 'admin' && (page === 'dashboard' || page === 'historial' || page === 'domicilios-hist' || page === 'plazos' || page === 'avance')) return;
+  if (ROL !== 'admin' && (page === 'dashboard' || page === 'historial' || page === 'domicilios-hist' || page === 'plazos' || page === 'canalizados' || page === 'avance')) return;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
@@ -870,6 +904,7 @@ function goTo(page, btn) {
   if (page === 'historial') renderHistorial();
   if (page === 'domicilios-hist') renderDomicilios();
   if (page === 'plazos') renderPlazos();
+  if (page === 'canalizados') renderCanalizados();
   if (page === 'avance') renderAvancePoligonos();
   if (page === 'domicilio' && !document.getElementById('dom-fecha').value) {
     document.getElementById('dom-fecha').value = todayStr();
@@ -1132,7 +1167,8 @@ async function renderPlazos(){
     if (r.estado_plazo === 'cumplido'){
       var multaTxt = r.multa === true ? ' · multa' : (r.multa === false ? ' · sin multa' : '');
       var tip = (r.cumplido_obs||'') + (multaTxt ? ' ('+ (r.multa? 'con multa':'sin multa') +')' : '');
-      celdaConf = '<span style="color:#22c55e;font-size:12px;font-weight:600" title="' + escHtml(tip) + '">✓ ' + (r.cumplido_por ? escHtml(r.cumplido_por) : 'cumplido') + escHtml(multaTxt) + '</span>';
+      var ingBadge = r.canalizado_ingresos ? '<br><span style="color:#1a6fc4;font-size:11px;font-weight:600">→ Ingresos</span>' : '';
+      celdaConf = '<span style="color:#22c55e;font-size:12px;font-weight:600" title="' + escHtml(tip) + '">✓ ' + (r.cumplido_por ? escHtml(r.cumplido_por) : 'cumplido') + escHtml(multaTxt) + '</span>' + ingBadge;
     } else {
       celdaConf = '<button class="btn btn-primary" style="padding:4px 12px;font-size:12px" onclick="abrirModalPlazo(' + r.id + ', \'' + String(r.folio).replace(/'/g,"") + '\')">Confirmar</button>';
     }
@@ -1155,6 +1191,7 @@ function abrirModalPlazo(id, folio){
   _plModalId = id;
   _plMulta = null;
   document.querySelectorAll('.pl-multa-opt').forEach(function(b){ b.classList.remove('btn-primary'); b.classList.add('btn-ghost'); });
+  document.getElementById('pl-modal-canalizar').checked = false;
   document.getElementById('pl-modal-sub').textContent = 'Domicilio ' + folio;
   document.getElementById('pl-modal-obs').value = '';
   document.getElementById('pl-modal').style.display = 'flex';
@@ -1164,16 +1201,48 @@ async function guardarCumplimiento(){
   if (!_plModalId) return;
   if (_plMulta === null){ toast('Indica si se aplicó multa o no.'); return; }
   const obs = document.getElementById('pl-modal-obs').value.trim();
+  const canalizar = document.getElementById('pl-modal-canalizar').checked;
   const btn = document.getElementById('pl-modal-guardar');
   btn.disabled = true; btn.textContent = 'Guardando...';
   try {
-    await api('/api/domicilios/' + _plModalId + '/cumplir', { method:'POST', body: JSON.stringify({ obs: obs, multa: _plMulta === 'si' }) });
+    await api('/api/domicilios/' + _plModalId + '/cumplir', { method:'POST', body: JSON.stringify({ obs: obs, multa: _plMulta === 'si', canalizar: canalizar }) });
     toast('Cumplimiento confirmado.');
     cerrarModalPlazo();
     renderPlazos();
   } catch(e){ toast('No se pudo confirmar. ' + (e.message||'')); }
   finally { btn.disabled = false; btn.textContent = 'Confirmar cumplido'; }
 }
+
+// ── Módulo Canalizados a Ingresos ──────────────────────────────
+async function renderCanalizados(){
+  const body = document.getElementById('can-body');
+  let rows;
+  try { rows = await api('/api/canalizados'); }
+  catch(e){ toast('No se pudieron cargar los canalizados.'); return; }
+  document.getElementById('can-count').textContent = rows.length + (rows.length===1 ? ' predio' : ' predios');
+  if (!rows.length){ body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:20px">Aún no hay predios canalizados a Ingresos.</td></tr>'; return; }
+  body.innerHTML = rows.map(function(r){
+    var gps = (r.lat != null && r.lng != null)
+      ? '<a href="https://www.google.com/maps/search/?api=1&query=' + r.lat + ',' + r.lng + '" target="_blank" style="color:#1a6fc4">' + r.lat + ', ' + r.lng + '</a>'
+      : '<span style="color:var(--text2)">sin GPS</span>';
+    var pdf = r.has_pdf
+      ? '<button class="btn btn-ghost" style="padding:4px 12px;font-size:12px" onclick="verPdfDom(' + r.id + ')">Ver PDF</button>'
+      : '<span style="color:var(--text2);font-size:12px">Sin PDF</span>';
+    var can = r.canalizado_en ? venceDisplay(r.canalizado_en) : '—';
+    if (r.canalizado_por) can += '<br><span style="color:var(--text2);font-size:11px">por ' + escHtml(r.canalizado_por) + '</span>';
+    return '<tr>' +
+      '<td class="mono">' + escHtml(r.folio) + '</td>' +
+      '<td style="max-width:220px">' + escHtml(r.direccion||'—') + '</td>' +
+      '<td>' + escHtml((r.uso||'—') + ' · ' + (r.estado||'—')) + '</td>' +
+      '<td>' + escHtml(r.equipo||'—') + '</td>' +
+      '<td style="max-width:200px">' + escHtml(r.problematica||'—') + '</td>' +
+      '<td style="white-space:nowrap">' + gps + '</td>' +
+      '<td style="white-space:nowrap">' + can + '</td>' +
+      '<td style="text-align:center;white-space:nowrap">' + pdf + '</td>' +
+    '</tr>';
+  }).join('');
+}
+function exportarExcelCanalizados(){ window.location.href = '/api/export/excel/canalizados'; }
 
 // ── Panel de avance de polígonos (manzanas cubiertas) ──────────
 async function renderAvancePoligonos(){
@@ -1230,6 +1299,8 @@ async function initRol() {
     if (navDomHist) navDomHist.style.display = 'none';
     const navPlazos = document.querySelector('button[onclick*="plazos"]');
     if (navPlazos) navPlazos.style.display = 'none';
+    const navCanal = document.querySelector('button[onclick*="canalizados"]');
+    if (navCanal) navCanal.style.display = 'none';
     const navAvance = document.querySelector('button[onclick*="avance"]');
     if (navAvance) navAvance.style.display = 'none';
   }
