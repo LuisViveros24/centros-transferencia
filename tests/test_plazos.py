@@ -61,7 +61,14 @@ class TestPlazosListado:
              'plazo_horas': 24, 'limite': None, 'direccion': '', 'equipo': '',
              'problematica': '', 'accion': '', 'fecha': '2026-08-01', 'uso': '',
              'nombre_comercio': '', 'estado': '', 'obs': '', 'folio_acta': '',
-             'cumplido_en': None, 'cumplido_obs': None, 'cumplido_por': None},
+             'cumplido_en': None, 'cumplido_obs': None, 'cumplido_por': None,
+             'incumplimiento': False},
+            {'id': 3, 'folio': 'DOM-0003', 'cumplido': True, 'vencido': True,
+             'plazo_horas': 24, 'limite': None, 'direccion': '', 'equipo': '',
+             'problematica': '', 'accion': '', 'fecha': '2026-08-01', 'uso': '',
+             'nombre_comercio': '', 'estado': '', 'obs': '', 'folio_acta': '',
+             'cumplido_en': None, 'cumplido_obs': None, 'cumplido_por': None,
+             'incumplimiento': True},
         ]
         with patch('app.get_db', return_value=fake_db(fetchall_value=filas)):
             r = client.get('/api/plazos?estado=todos', headers=_auth('admin_test', 'clave_admin'))
@@ -69,6 +76,7 @@ class TestPlazosListado:
         estados = {d['folio']: d['estado_plazo'] for d in data}
         assert estados['DOM-0001'] == 'vencido'
         assert estados['DOM-0002'] == 'cumplido'
+        assert estados['DOM-0003'] == 'incumplimiento'
 
     def test_viewer_no_ve_plazos(self, client):
         with patch('app.get_db', return_value=fake_db()):

@@ -102,7 +102,8 @@ def init_db():
                                     ('cumplido_obs','TEXT'), ('cumplido_por','TEXT'),
                                     ('multa','BOOLEAN'),
                                     ('canalizado_ingresos','BOOLEAN'),
-                                    ('canalizado_en','TIMESTAMP'), ('canalizado_por','TEXT')):
+                                    ('canalizado_en','TIMESTAMP'), ('canalizado_por','TEXT'),
+                                    ('incumplimiento','BOOLEAN')):
                     cur.execute(f'ALTER TABLE domicilios ADD COLUMN IF NOT EXISTS {_col} {_tipo}')
                 cur.execute(
                     "INSERT INTO config VALUES ('folio_base','1') ON CONFLICT DO NOTHING"
@@ -864,6 +865,7 @@ def api_plazos():
                     "(foto_pdf IS NOT NULL) AS has_pdf, "
                     "COALESCE(cumplido,false) AS cumplido, cumplido_en, cumplido_obs, cumplido_por, multa, "
                     "COALESCE(canalizado_ingresos,false) AS canalizado_ingresos, "
+                    "COALESCE(incumplimiento,false) AS incumplimiento, "
                     + SQL_LIMITE + " AS limite, "
                     "(" + SQL_LIMITE + " IS NOT NULL AND " + SQL_LIMITE + " < now()) AS vencido "
                     "FROM domicilios " + where + " ORDER BY folio ASC",
@@ -874,13 +876,17 @@ def api_plazos():
     out = []
     for r in rows:
         d = dict(r)
-        d['estado_plazo'] = 'cumplido' if d['cumplido'] else ('vencido' if d['vencido'] else 'por_vencer')
+        if d['cumplido']:
+            d['estado_plazo'] = 'incumplimiento' if d.get('incumplimiento') else 'cumplido'
+        else:
+            d['estado_plazo'] = 'vencido' if d['vencido'] else 'por_vencer'
         out.append(d)
-    if estado in ('vencidos', 'por_vencer', 'cumplidos'):
-        objetivo = {'vencidos': 'vencido', 'por_vencer': 'por_vencer', 'cumplidos': 'cumplido'}[estado]
+    if estado in ('vencidos', 'por_vencer', 'cumplidos', 'incumplimientos'):
+        objetivo = {'vencidos': 'vencido', 'por_vencer': 'por_vencer',
+                    'cumplidos': 'cumplido', 'incumplimientos': 'incumplimiento'}[estado]
         out = [d for d in out if d['estado_plazo'] == objetivo]
     elif estado == 'pendientes':
-        out = [d for d in out if d['estado_plazo'] != 'cumplido']
+        out = [d for d in out if d['estado_plazo'] not in ('cumplido', 'incumplimiento')]
     return jsonify(out)
 
 @app.route('/api/domicilios/<int:rid>/cumplir', methods=['POST'])
@@ -892,6 +898,8 @@ def cumplir_domicilio(rid):
     multa = d.get('multa')
     multa = bool(multa) if multa is not None else None
     canalizar = bool(d.get('canalizar'))
+    # resultado: 'incumplimiento' o 'cumplido' (por defecto). Ambos cierran el plazo.
+    incumplimiento = (d.get('resultado') == 'incumplimiento') or bool(d.get('incumplimiento'))
     por = (request.authorization.username if request.authorization else '') or ''
     conn = get_db()
     try:
@@ -899,12 +907,12 @@ def cumplir_domicilio(rid):
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE domicilios SET cumplido=TRUE, cumplido_en=now(), "
-                    "cumplido_obs=%s, cumplido_por=%s, multa=%s, "
+                    "cumplido_obs=%s, cumplido_por=%s, multa=%s, incumplimiento=%s, "
                     "canalizado_ingresos=%s, "
                     "canalizado_en = CASE WHEN %s THEN now() ELSE NULL END, "
                     "canalizado_por = CASE WHEN %s THEN %s ELSE NULL END "
                     "WHERE id=%s",
-                    (obs, por, multa, canalizar, canalizar, canalizar, por, rid))
+                    (obs, por, multa, incumplimiento, canalizar, canalizar, canalizar, por, rid))
                 if cur.rowcount == 0:
                     return jsonify({'error': 'Domicilio no encontrado'}), 404
     finally:
@@ -1096,7 +1104,8 @@ def export_excel_domicilios():
                            estado, problematica, accion, equipo, plazo_horas, lat, lng, obs,
                            (foto_pdf IS NOT NULL) AS has_pdf, creado_en,
                            COALESCE(cumplido,false) AS cumplido, cumplido_en,
-                           cumplido_obs, cumplido_por, multa
+                           cumplido_obs, cumplido_por, multa,
+                           COALESCE(incumplimiento,false) AS incumplimiento
                     FROM domicilios ORDER BY id DESC
                 """)
                 rows = cur.fetchall()
@@ -1110,7 +1119,7 @@ def export_excel_domicilios():
                'Uso del predio', 'Nombre del comercio', 'Estado del predio',
                'Problemática', 'Acción', 'Equipo', 'Plazo', 'Fecha límite',
                'Ubicación (lat, lng)', 'Fotos (PDF)', 'Observaciones', 'Registrado',
-               'Cumplido', 'Multa', 'Resolución', 'Confirmado por', 'Confirmado el']
+               'Cumplido', 'Resultado', 'Multa', 'Resolución', 'Confirmado por', 'Confirmado el']
     header_fill = PatternFill(fill_type='solid', fgColor='1a6fc4')
     header_font = Font(bold=True, color='FFFFFF')
     for col, h in enumerate(headers, 1):
@@ -1129,12 +1138,13 @@ def export_excel_domicilios():
             lim.strftime('%Y-%m-%d %H:%M') if lim else '', coords,
             'Sí' if row.get('has_pdf') else 'No', row.get('obs', ''), row['creado_en'],
             'Sí' if row.get('cumplido') else 'No',
+            ('Incumplimiento' if row.get('incumplimiento') else 'Cumplió') if row.get('cumplido') else '',
             ('Sí' if row.get('multa') else 'No') if row.get('multa') is not None else '',
             row.get('cumplido_obs', '') or '', row.get('cumplido_por', '') or '',
             row['cumplido_en'].strftime('%Y-%m-%d %H:%M') if row.get('cumplido_en') else ''
         ])
     col_widths = [6, 12, 14, 12, 34, 16, 24, 18, 22, 14, 12, 14, 18, 22, 10, 30, 18,
-                  9, 7, 30, 16, 18]
+                  9, 14, 7, 30, 16, 18]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
     buf = io.BytesIO()
