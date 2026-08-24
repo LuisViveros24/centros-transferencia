@@ -111,8 +111,9 @@
     <div class="card"><table><thead><tr><th>Por equipo</th><th class="num">Cantidad</th></tr></thead><tbody id="t-eq"></tbody></table><div class="pie" id="pie-eq"></div></div>
     <div class="card"><table><thead><tr><th>Por problemática</th><th class="num">Cantidad</th></tr></thead><tbody id="t-prob"></tbody></table><div class="pie" id="pie-prob"></div></div>
     <div class="card"><table><thead><tr><th>Por uso</th><th class="num">Cantidad</th></tr></thead><tbody id="t-uso"></tbody></table><div class="pie" id="pie-uso"></div></div>
+    <div class="card"><table><thead><tr><th>Multas por problemática</th><th class="num">Multas</th></tr></thead><tbody id="t-multaprob"></tbody></table><div class="pie" id="pie-multaprob"></div></div>
   </div>
-  <div class="note" style="margin-top:6px">Nota: un solo predio puede presentar 2 o más problemáticas.</div>
+  <div class="note" style="margin-top:6px">Nota: un solo predio puede presentar 2 o más problemáticas. Las multas se cuentan por cada problemática señalada en el folio.</div>
 
   <h2 id="h-polys">Polígonos cubiertos</h2>
   <div class="polys" id="polys"></div>
@@ -273,6 +274,8 @@ async function cargar(){
     renderResumen('t-prob','pie-prob', prIt, colorsFor('o', prIt));
     var usIt=fromDict(d.por_uso);
     renderResumen('t-uso','pie-uso', usIt, colorsFor('o', usIt));
+    var mpIt=fromArr(d.multas_por_problematica);
+    renderResumen('t-multaprob','pie-multaprob', mpIt, colorsFor('o', mpIt));
     if(d.poligonos) renderPolys(d.poligonos);
     const n=new Date();document.getElementById('updated').textContent=[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
   }catch(e){err.textContent='No se pudo actualizar ('+(e.message||e)+'). Reintentando…';err.style.display='block';}

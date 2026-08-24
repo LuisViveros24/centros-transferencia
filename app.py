@@ -761,8 +761,8 @@ def dashboard_domicilios():
                     "SELECT fecha, COUNT(*) c FROM domicilios" + base_where
                     + " GROUP BY fecha ORDER BY fecha", params)]
                 # Problemática puede tener varias opciones por domicilio (separadas por coma):
-                # se cuentan por separado.
-                prob_rows = qa("SELECT problematica FROM domicilios" + base_where, params)
+                # se cuentan por separado. Se trae multa/accion para el desglose de multas.
+                prob_rows = qa("SELECT problematica, multa, accion FROM domicilios" + base_where, params)
                 venc = q1(
                     "SELECT "
                     "COUNT(*) FILTER (WHERE NOT COALESCE(cumplido,false) AND lim IS NOT NULL AND lim < now()) v, "
@@ -784,13 +784,21 @@ def dashboard_domicilios():
         conn.close()
 
     prob_counts = {}
+    multa_prob_counts = {}
     for r in prob_rows:
+        # La multa aplica solo a amonestaciones (mismo criterio que el desglose Con/Sin multa)
+        es_multa = (r.get('multa') is True) and (str(r.get('accion') or '').strip() == 'Amonestado')
         for p in (r['problematica'] or '').split(','):
             p = p.strip()
             if p:
                 prob_counts[p] = prob_counts.get(p, 0) + 1
+                if es_multa:
+                    multa_prob_counts[p] = multa_prob_counts.get(p, 0) + 1
     por_problematica = sorted(
         [{'k': k, 'c': v} for k, v in prob_counts.items()],
+        key=lambda x: -x['c'])
+    multas_por_problematica = sorted(
+        [{'k': k, 'c': v} for k, v in multa_prob_counts.items()],
         key=lambda x: -x['c'])
 
     return jsonify({
@@ -798,6 +806,7 @@ def dashboard_domicilios():
         'por_uso': por_uso,
         'por_estado': por_estado,
         'por_problematica': por_problematica,
+        'multas_por_problematica': multas_por_problematica,
         'por_accion': por_accion,
         'por_equipo': por_equipo,
         'historial': hist,
