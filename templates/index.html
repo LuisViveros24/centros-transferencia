@@ -766,9 +766,10 @@
           <table>
             <thead><tr>
               <th>Folio</th><th>Fecha</th><th>Dirección</th><th>Equipo</th>
-              <th>Problemática</th><th>Plazo</th><th>Vence</th><th>Estado</th><th>Acción</th>
+              <th>Problemática</th><th>Plazo</th><th>Vence</th><th>Estado</th>
+              <th style="text-align:center">PDF</th><th style="text-align:center">Confirmar</th>
             </tr></thead>
-            <tbody id="pl-body"><tr><td colspan="9" style="text-align:center;color:var(--text2);padding:20px">Cargando…</td></tr></tbody>
+            <tbody id="pl-body"><tr><td colspan="10" style="text-align:center;color:var(--text2);padding:20px">Cargando…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -790,7 +791,12 @@
   <div class="card" style="max-width:460px;width:100%">
     <div style="font-weight:700;font-size:16px;margin-bottom:2px">Confirmar cumplimiento</div>
     <div id="pl-modal-sub" style="color:var(--text2);font-size:13px;margin-bottom:12px"></div>
-    <label style="font-size:12px;color:var(--text2)">Observaciones</label>
+    <label style="font-size:12px;color:var(--text2)">¿Se aplicó multa?</label>
+    <div style="display:flex;gap:8px;margin:4px 0 12px">
+      <button type="button" class="btn btn-ghost pl-multa-opt" data-multa="si" onclick="setMulta('si')" style="flex:1;padding:8px;font-size:13px">Sí, con multa</button>
+      <button type="button" class="btn btn-ghost pl-multa-opt" data-multa="no" onclick="setMulta('no')" style="flex:1;padding:8px;font-size:13px">No, sin multa</button>
+    </div>
+    <label style="font-size:12px;color:var(--text2)">Observaciones / resolución</label>
     <textarea id="pl-modal-obs" maxlength="500" style="width:100%;min-height:92px;margin-top:4px" placeholder="Ej. Se verificó en sitio; el predio fue limpiado / el comercio atendió la notificación..."></textarea>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
       <button class="btn btn-ghost" onclick="cerrarModalPlazo()">Cancelar</button>
@@ -1085,7 +1091,15 @@ async function updateNavBadges() {
 // ── Rol del usuario ────────────────────────────────────────────
 let ROL = 'admin';
 // ── Módulo de Plazos (seguimiento de cumplimiento) ─────────────
-let _plModalId = null;
+let _plModalId = null, _plMulta = null;
+function setMulta(v){
+  _plMulta = v;
+  document.querySelectorAll('.pl-multa-opt').forEach(function(b){
+    var on = b.getAttribute('data-multa') === v;
+    b.classList.toggle('btn-primary', on);
+    b.classList.toggle('btn-ghost', !on);
+  });
+}
 function plazoTexto(h){ if(h===null||h===undefined) return '—'; if(Number(h)===0) return 'El mismo día'; return h+' h'; }
 function venceDisplay(s){
   if(!s) return '—';
@@ -1102,17 +1116,26 @@ async function renderPlazos(){
     rows = await api('/api/plazos?estado=' + encodeURIComponent(estado) + (equipo ? '&equipo=' + encodeURIComponent(equipo) : ''));
   } catch(e){ toast('No se pudieron cargar los plazos.'); return; }
   document.getElementById('pl-count').textContent = rows.length + (rows.length===1 ? ' domicilio' : ' domicilios');
-  if (!rows.length){ body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:20px">Sin domicilios en este filtro.</td></tr>'; return; }
+  if (!rows.length){ body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text2);padding:20px">Sin domicilios en este filtro.</td></tr>'; return; }
   body.innerHTML = rows.map(function(r){
     const badge = r.estado_plazo === 'vencido'
       ? '<span style="background:rgba(239,68,68,.18);color:#ef4444;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">Vencido</span>'
       : r.estado_plazo === 'cumplido'
       ? '<span style="background:rgba(34,197,94,.18);color:#22c55e;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">Cumplido</span>'
       : '<span style="background:rgba(245,158,11,.18);color:#f59e0b;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">Por vencer</span>';
-    const verPdf = r.has_pdf ? '<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;margin-right:6px" onclick="verPdfDom(' + r.id + ')">Ver PDF</button>' : '';
-    const accion = verPdf + (r.estado_plazo === 'cumplido'
-      ? '<span style="color:var(--text2);font-size:12px" title="' + escHtml(r.cumplido_obs||'') + '">✓ ' + (r.cumplido_por ? escHtml(r.cumplido_por) : 'cumplido') + '</span>'
-      : '<button class="btn btn-primary" style="padding:4px 10px;font-size:12px" onclick="abrirModalPlazo(' + r.id + ', \'' + String(r.folio).replace(/'/g,"") + '\')">Confirmar</button>');
+    // Columna PDF: botón en todos los que tienen PDF; "Sin PDF" en los que no.
+    const celdaPdf = r.has_pdf
+      ? '<button class="btn btn-ghost" style="padding:4px 12px;font-size:12px" onclick="verPdfDom(' + r.id + ')">Ver PDF</button>'
+      : '<span style="color:var(--text2);font-size:12px">Sin PDF</span>';
+    // Columna Confirmar: botón en pendientes; ✓ resolución en los ya cumplidos.
+    var celdaConf;
+    if (r.estado_plazo === 'cumplido'){
+      var multaTxt = r.multa === true ? ' · multa' : (r.multa === false ? ' · sin multa' : '');
+      var tip = (r.cumplido_obs||'') + (multaTxt ? ' ('+ (r.multa? 'con multa':'sin multa') +')' : '');
+      celdaConf = '<span style="color:#22c55e;font-size:12px;font-weight:600" title="' + escHtml(tip) + '">✓ ' + (r.cumplido_por ? escHtml(r.cumplido_por) : 'cumplido') + escHtml(multaTxt) + '</span>';
+    } else {
+      celdaConf = '<button class="btn btn-primary" style="padding:4px 12px;font-size:12px" onclick="abrirModalPlazo(' + r.id + ', \'' + String(r.folio).replace(/'/g,"") + '\')">Confirmar</button>';
+    }
     return '<tr>' +
       '<td class="mono">' + escHtml(r.folio) + '</td>' +
       '<td>' + fechaDisplay(r.fecha) + '</td>' +
@@ -1122,13 +1145,16 @@ async function renderPlazos(){
       '<td>' + plazoTexto(r.plazo_horas) + '</td>' +
       '<td>' + venceDisplay(r.limite) + '</td>' +
       '<td>' + badge + '</td>' +
-      '<td>' + accion + '</td>' +
+      '<td style="text-align:center;white-space:nowrap">' + celdaPdf + '</td>' +
+      '<td style="text-align:center;white-space:nowrap">' + celdaConf + '</td>' +
     '</tr>';
   }).join('');
 }
 function verPdfDom(id){ window.open(location.origin + '/api/domicilios/' + id + '/pdf?inline=1', '_blank'); }
 function abrirModalPlazo(id, folio){
   _plModalId = id;
+  _plMulta = null;
+  document.querySelectorAll('.pl-multa-opt').forEach(function(b){ b.classList.remove('btn-primary'); b.classList.add('btn-ghost'); });
   document.getElementById('pl-modal-sub').textContent = 'Domicilio ' + folio;
   document.getElementById('pl-modal-obs').value = '';
   document.getElementById('pl-modal').style.display = 'flex';
@@ -1136,11 +1162,12 @@ function abrirModalPlazo(id, folio){
 function cerrarModalPlazo(){ _plModalId = null; document.getElementById('pl-modal').style.display = 'none'; }
 async function guardarCumplimiento(){
   if (!_plModalId) return;
+  if (_plMulta === null){ toast('Indica si se aplicó multa o no.'); return; }
   const obs = document.getElementById('pl-modal-obs').value.trim();
   const btn = document.getElementById('pl-modal-guardar');
   btn.disabled = true; btn.textContent = 'Guardando...';
   try {
-    await api('/api/domicilios/' + _plModalId + '/cumplir', { method:'POST', body: JSON.stringify({ obs: obs }) });
+    await api('/api/domicilios/' + _plModalId + '/cumplir', { method:'POST', body: JSON.stringify({ obs: obs, multa: _plMulta === 'si' }) });
     toast('Cumplimiento confirmado.');
     cerrarModalPlazo();
     renderPlazos();
