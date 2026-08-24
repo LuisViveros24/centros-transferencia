@@ -99,7 +99,8 @@ def init_db():
                                     ('lat','REAL'), ('lng','REAL'),
                                     ('obs','TEXT'), ('foto_pdf','BYTEA'),
                                     ('cumplido','BOOLEAN'), ('cumplido_en','TIMESTAMP'),
-                                    ('cumplido_obs','TEXT'), ('cumplido_por','TEXT')):
+                                    ('cumplido_obs','TEXT'), ('cumplido_por','TEXT'),
+                                    ('multa','BOOLEAN')):
                     cur.execute(f'ALTER TABLE domicilios ADD COLUMN IF NOT EXISTS {_col} {_tipo}')
                 cur.execute(
                     "INSERT INTO config VALUES ('folio_base','1') ON CONFLICT DO NOTHING"
@@ -859,7 +860,7 @@ def api_plazos():
                     "SELECT id, folio, folio_acta, fecha, direccion, uso, nombre_comercio, "
                     "estado, problematica, accion, equipo, plazo_horas, obs, "
                     "(foto_pdf IS NOT NULL) AS has_pdf, "
-                    "COALESCE(cumplido,false) AS cumplido, cumplido_en, cumplido_obs, cumplido_por, "
+                    "COALESCE(cumplido,false) AS cumplido, cumplido_en, cumplido_obs, cumplido_por, multa, "
                     + SQL_LIMITE + " AS limite, "
                     "(" + SQL_LIMITE + " IS NOT NULL AND " + SQL_LIMITE + " < now()) AS vencido "
                     "FROM domicilios " + where + " ORDER BY " + SQL_LIMITE + " ASC NULLS LAST",
@@ -885,6 +886,8 @@ def cumplir_domicilio(rid):
     """Marca un domicilio como cumplido (plazo atendido) con observaciones. Solo admin."""
     d = request.get_json(silent=True) or {}
     obs = (d.get('obs') or '').strip()
+    multa = d.get('multa')
+    multa = bool(multa) if multa is not None else None
     por = (request.authorization.username if request.authorization else '') or ''
     conn = get_db()
     try:
@@ -892,8 +895,8 @@ def cumplir_domicilio(rid):
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE domicilios SET cumplido=TRUE, cumplido_en=now(), "
-                    "cumplido_obs=%s, cumplido_por=%s WHERE id=%s",
-                    (obs, por, rid))
+                    "cumplido_obs=%s, cumplido_por=%s, multa=%s WHERE id=%s",
+                    (obs, por, multa, rid))
                 if cur.rowcount == 0:
                     return jsonify({'error': 'Domicilio no encontrado'}), 404
     finally:
@@ -1018,7 +1021,9 @@ def export_excel_domicilios():
                 cur.execute("""
                     SELECT id, folio, folio_acta, fecha, direccion, uso, nombre_comercio,
                            estado, problematica, accion, equipo, plazo_horas, lat, lng, obs,
-                           (foto_pdf IS NOT NULL) AS has_pdf, creado_en
+                           (foto_pdf IS NOT NULL) AS has_pdf, creado_en,
+                           COALESCE(cumplido,false) AS cumplido, cumplido_en,
+                           cumplido_obs, cumplido_por, multa
                     FROM domicilios ORDER BY id DESC
                 """)
                 rows = cur.fetchall()
@@ -1031,7 +1036,8 @@ def export_excel_domicilios():
     headers = ['ID', 'Folio captura', 'Folio acta física', 'Fecha', 'Dirección',
                'Uso del predio', 'Nombre del comercio', 'Estado del predio',
                'Problemática', 'Acción', 'Equipo', 'Plazo', 'Fecha límite',
-               'Ubicación (lat, lng)', 'Fotos (PDF)', 'Observaciones', 'Registrado']
+               'Ubicación (lat, lng)', 'Fotos (PDF)', 'Observaciones', 'Registrado',
+               'Cumplido', 'Multa', 'Resolución', 'Confirmado por', 'Confirmado el']
     header_fill = PatternFill(fill_type='solid', fgColor='1a6fc4')
     header_font = Font(bold=True, color='FFFFFF')
     for col, h in enumerate(headers, 1):
@@ -1048,9 +1054,14 @@ def export_excel_domicilios():
             row['problematica'], row.get('accion', ''), row.get('equipo', ''),
             _plazo_texto(row.get('plazo_horas')),
             lim.strftime('%Y-%m-%d %H:%M') if lim else '', coords,
-            'Sí' if row.get('has_pdf') else 'No', row.get('obs', ''), row['creado_en']
+            'Sí' if row.get('has_pdf') else 'No', row.get('obs', ''), row['creado_en'],
+            'Sí' if row.get('cumplido') else 'No',
+            ('Sí' if row.get('multa') else 'No') if row.get('multa') is not None else '',
+            row.get('cumplido_obs', '') or '', row.get('cumplido_por', '') or '',
+            row['cumplido_en'].strftime('%Y-%m-%d %H:%M') if row.get('cumplido_en') else ''
         ])
-    col_widths = [6, 12, 14, 12, 34, 16, 24, 18, 22, 14, 12, 14, 18, 22, 10, 30, 18]
+    col_widths = [6, 12, 14, 12, 34, 16, 24, 18, 22, 14, 12, 14, 18, 22, 10, 30, 18,
+                  9, 7, 30, 16, 18]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
     buf = io.BytesIO()
