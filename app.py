@@ -863,7 +863,7 @@ def api_plazos():
                     "COALESCE(cumplido,false) AS cumplido, cumplido_en, cumplido_obs, cumplido_por, multa, "
                     + SQL_LIMITE + " AS limite, "
                     "(" + SQL_LIMITE + " IS NOT NULL AND " + SQL_LIMITE + " < now()) AS vencido "
-                    "FROM domicilios " + where + " ORDER BY " + SQL_LIMITE + " ASC NULLS LAST",
+                    "FROM domicilios " + where + " ORDER BY folio ASC",
                     params)
                 rows = cur.fetchall()
     finally:
