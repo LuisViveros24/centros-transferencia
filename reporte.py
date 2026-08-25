@@ -142,14 +142,18 @@ def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubier
 
     # Seguimiento de plazos (numérico) + multas por problemática
     if seguimiento is not None:
+        # "Por multar" se muestra aparte y se descuenta de "Sin multa"
+        _con_multa = seguimiento.get('con_multa', 0)
+        _por_multar = seguimiento.get('canalizados', 0)
+        _sin_multa = max(0, seguimiento.get('sin_multa', 0) - _por_multar)
         seg_block = [Paragraph('Seguimiento de plazos', H2)]
         seg_items = [
             ('Amonestaciones por verificar', seguimiento.get('vencidos', 0)),
             ('Cumplidos', seguimiento.get('cumplidos', 0)),
             ('Incumplimientos', seguimiento.get('incumplimientos', 0)),
-            ('Con multa', seguimiento.get('con_multa', 0)),
-            ('Sin multa', seguimiento.get('sin_multa', 0)),
-            ('Por Multar', seguimiento.get('canalizados', 0)),
+            ('Con multa', _con_multa),
+            ('Sin multa', _sin_multa),
+            ('Por Multar', _por_multar),
         ]
         seg_body = [[P('Concepto', CB), P('Cantidad', CBc)]]
         for k, v in seg_items:
@@ -174,9 +178,9 @@ def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubier
         res_items = [('Cumplidos', seguimiento.get('cumplidos', 0)), ('Incumplimientos', seguimiento.get('incumplimientos', 0))]
         if sum(v for _, v in res_items) > 0:
             pays.append(col_fija('Resultado', res_items, ['#27ae60', '#e74c3c']))
-        multa_items = [('Con multa', seguimiento.get('con_multa', 0)), ('Sin multa', seguimiento.get('sin_multa', 0))]
+        multa_items = [('Con multa', _con_multa), ('Por multar', _por_multar), ('Sin multa', _sin_multa)]
         if sum(v for _, v in multa_items) > 0:
-            pays.append(col_fija('Multa', multa_items, ['#e67e22', '#3b82f6']))
+            pays.append(col_fija('Multa', multa_items, ['#e67e22', '#9b59b6', '#3b82f6']))
         if pays:
             while len(pays) < 3:
                 pays.append('')
