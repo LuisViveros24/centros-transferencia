@@ -115,7 +115,24 @@ def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubier
     S.append(Paragraph('Generado el ' + datetime.now().strftime('%d/%m/%Y %H:%M') +
                        ' · ' + str(len(rows)) + ' domicilios identificados · ' + str(ncov) + ' de ' + str(total_poly) +
                        ' polígonos cubiertos (' + str(round(ncov / total_poly * 100)) + '%) · faltan ' + str(total_poly - ncov), SUB))
-    S.append(Spacer(1, 5))
+    S.append(Spacer(1, 6))
+    # Panel de KPIs (refleja el primer panel del tablero, sin "Multados")
+    BIGN = ParagraphStyle('bign', parent=st['Title'], fontSize=20, textColor=DARK, alignment=1, spaceAfter=0, leading=22)
+    KLBL = ParagraphStyle('klbl', parent=st['Normal'], fontSize=8, textColor=colors.HexColor('#7f8c8d'), alignment=1, leading=9)
+
+    def kpi_box(num, label):
+        inner = Table([[Paragraph(str(num), BIGN)], [Paragraph(label, KLBL)]], colWidths=[6.5 * cm])
+        inner.setStyle(TableStyle([('BOX', (0, 0), (-1, -1), 0.5, LGREY), ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+            ('TOPPADDING', (0, 0), (-1, -1), 5), ('BOTTOMPADDING', (0, 0), (-1, -1), 6), ('ALIGN', (0, 0), (-1, -1), 'CENTER')]))
+        return inner
+
+    _acc = lambda v: sum(1 for r in rows if str(r.get('accion') or '').strip() == v)
+    kpis = Table([[kpi_box(len(rows), 'Domicilios identificados'), kpi_box(_acc('Notificado'), 'Notificados'),
+                   kpi_box(_acc('Amonestado'), 'Amonestados')]], colWidths=[8.0 * cm, 8.0 * cm, 8.0 * cm])
+    kpis.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4), ('RIGHTPADDING', (0, 0), (-1, -1), 4)]))
+    S.append(kpis)
+    S.append(Spacer(1, 8))
     S.append(Paragraph('Resumen del día', H2))
     resumen = Table([[columna('Por equipo', por_eq), columna('Por problemática', por_prob), columna('Por uso', por_uso)]],
                     colWidths=[7.9 * cm, 7.9 * cm, 7.9 * cm])

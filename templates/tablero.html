@@ -92,7 +92,6 @@
     <div class="kpi"><div class="n" id="k-total">0</div><div class="l">Domicilios Identificados</div></div>
     <div class="kpi"><div class="n" id="k-noti">0</div><div class="l">Notificados</div></div>
     <div class="kpi"><div class="n" id="k-amon">0</div><div class="l">Amonestados</div></div>
-    <div class="kpi"><div class="n" id="k-mult">0</div><div class="l">Multados</div></div>
   </div>
 
   <h2>Seguimiento</h2>
@@ -261,7 +260,6 @@ async function cargar(){
     document.getElementById('k-total').textContent=d.total||0;
     document.getElementById('k-noti').textContent=(d.por_accion||{})['Notificado']||0;
     document.getElementById('k-amon').textContent=(d.por_accion||{})['Amonestado']||0;
-    document.getElementById('k-mult').textContent=(d.por_accion||{})['Multado']||0;
     document.getElementById('k-venc').textContent=d.vencidos||0;
     document.getElementById('k-pl-cumpl').textContent=d.plazos_cumplidos||0;
     document.getElementById('k-pl-incumpl').textContent=d.plazos_incumplimientos||0;
