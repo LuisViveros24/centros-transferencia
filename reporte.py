@@ -150,12 +150,15 @@ def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubier
         _incum = seguimiento.get('incumplimientos', 0)
         _pend = seguimiento.get('vencidos', 0)
         _revis = _cumpl + _incum
+        _total = len(rows) or 1
+        _notif = sum(1 for r in rows if str(r.get('accion') or '').strip() == 'Notificado')
         seg_block = [Paragraph('Seguimiento de plazos', H2)]
-        seg_block.append(Paragraph('De las <b>%d</b> amonestaciones revisadas, se muestran dos desgloses del mismo total: por <b>resultado</b> (cumplió / incumplió) y por <b>sanción</b> (multa). "Amonestaciones por verificar" son aparte: las %d que aún faltan revisar.'
-                                   % (_revis, _pend), NOTE))
+        seg_block.append(Paragraph('De las <b>%d</b> amonestaciones revisadas, se muestran dos desgloses del mismo total: por <b>resultado</b> (cumplió / incumplió) y por <b>sanción</b> (multa). "Amonestaciones por verificar" son las %d que aún faltan revisar. La <b>notificación verbal</b> (%d) es un predio que realizó la limpieza en el momento del llamado de atención; se contabiliza en pendientes por revisar. Los totales de grupo se muestran sobre el total de domicilios (/%d) y los detalles sobre su grupo.'
+                                   % (_revis, _pend, _notif, _total), NOTE))
         # Tabla agrupada (grupo con banda oscura, subtítulo con banda clara, ítem con sangría)
         _GRP = colors.HexColor('#3d4a5a'); _SUBC = colors.HexColor('#e8edf1')
         _grpst = ParagraphStyle('grp', parent=Cb, textColor=colors.white)
+        _grpcst = ParagraphStyle('grpc', parent=_grpst, alignment=1)
         _subst = ParagraphStyle('subh', parent=C, fontName='Helvetica-Bold', textColor=DARK)
         seg_body = [[P('Seguimiento', CB), P('Cantidad', CBc)]]
         seg_sty = [('BACKGROUND', (0, 0), (-1, 0), DARK),
@@ -163,27 +166,33 @@ def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubier
                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                    ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]
 
-        def _grp(txt):
-            r = len(seg_body); seg_body.append([Paragraph(escape(txt), _grpst), P('', C)])
-            seg_sty.extend([('BACKGROUND', (0, r), (-1, r), _GRP), ('SPAN', (0, r), (1, r))])
+        def _grp(txt, frac=None):
+            r = len(seg_body)
+            if frac is None:
+                seg_body.append([Paragraph(escape(txt), _grpst), P('', C)])
+                seg_sty.extend([('BACKGROUND', (0, r), (-1, r), _GRP), ('SPAN', (0, r), (1, r))])
+            else:
+                seg_body.append([Paragraph(escape(txt), _grpst), Paragraph(escape(frac), _grpcst)])
+                seg_sty.append(('BACKGROUND', (0, r), (-1, r), _GRP))
 
         def _sub(txt):
             r = len(seg_body); seg_body.append([Paragraph(escape(txt), _subst), P('', C)])
             seg_sty.extend([('BACKGROUND', (0, r), (-1, r), _SUBC), ('SPAN', (0, r), (1, r))])
 
-        def _it(txt, qty):
-            seg_body.append([P('   ' + txt, C), P(qty, Cc)])
+        def _it(txt, qty, den):
+            seg_body.append([P('   ' + txt, C), P('%d/%d' % (qty, den), Cc)])
 
         _grp('Pendientes por revisar')
-        _it('Amonestaciones por verificar', _pend)
-        _grp('Amonestaciones revisadas: %d' % _revis)
+        _it('Amonestaciones por verificar', _pend, _total)
+        _it('Notificación verbal', _notif, _total)
+        _grp('Amonestaciones revisadas', '%d/%d' % (_revis, _total))
         _sub('Por resultado')
-        _it('Cumplidas', _cumpl)
-        _it('Incumplidas', _incum)
+        _it('Cumplidas', _cumpl, _revis or 1)
+        _it('Incumplidas', _incum, _revis or 1)
         _sub('Por sanción')
-        _it('Con multa', _con_multa)
-        _it('Por multar', _por_multar)
-        _it('Sin multa', _sin_multa)
+        _it('Con multa', _con_multa, _revis or 1)
+        _it('Por multar', _por_multar, _revis or 1)
+        _it('Sin multa', _sin_multa, _revis or 1)
         seg_t = Table(seg_body, colWidths=[6.2 * cm, 2.4 * cm])
         seg_t.setStyle(TableStyle(seg_sty))
         if multa_prob:
