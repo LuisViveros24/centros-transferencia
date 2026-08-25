@@ -155,44 +155,48 @@ def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubier
         seg_block = [Paragraph('Seguimiento de plazos', H2)]
         seg_block.append(Paragraph('De las <b>%d</b> amonestaciones revisadas, se muestran dos desgloses del mismo total: por <b>resultado</b> (cumplió / incumplió) y por <b>sanción</b> (multa). "Amonestaciones por verificar" son las %d que aún faltan revisar. La <b>notificación verbal</b> (%d) es un predio que realizó la limpieza en el momento del llamado de atención; se contabiliza en pendientes por revisar. Los totales de grupo se muestran sobre el total de domicilios (/%d) y los detalles sobre su grupo.'
                                    % (_revis, _pend, _notif, _total), NOTE))
-        # Tabla agrupada (grupo con banda oscura, subtítulo con banda clara, ítem con sangría)
-        _GRP = colors.HexColor('#3d4a5a'); _SUBC = colors.HexColor('#e8edf1')
-        _grpst = ParagraphStyle('grp', parent=Cb, textColor=colors.white)
+        # Tabla jerárquica de lectura natural: encabezado oscuro, grupos con banda
+        # tenue, subtítulos sin banda y hojas con sangría; solo separadores horizontales.
+        _L1BG = colors.HexColor('#e9eef3'); _SEP = colors.HexColor('#e3e8ec')
+        _grpst = ParagraphStyle('grp', parent=C, fontName='Helvetica-Bold', textColor=DARK)
         _grpcst = ParagraphStyle('grpc', parent=_grpst, alignment=1)
-        _subst = ParagraphStyle('subh', parent=C, fontName='Helvetica-Bold', textColor=DARK)
+        _subst = ParagraphStyle('subh', parent=C, fontName='Helvetica-BoldOblique',
+                                textColor=colors.HexColor('#5a6a78'), fontSize=8)
         seg_body = [[P('Seguimiento', CB), P('Cantidad', CBc)]]
         seg_sty = [('BACKGROUND', (0, 0), (-1, 0), DARK),
-                   ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#dfe4ea')),
+                   ('LINEBELOW', (0, 0), (-1, -1), 0.4, _SEP),
                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                   ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]
+                   ('TOPPADDING', (0, 0), (-1, -1), 3.5), ('BOTTOMPADDING', (0, 0), (-1, -1), 3.5),
+                   ('LEFTPADDING', (0, 0), (0, -1), 8)]
 
         def _grp(txt, frac=None):
             r = len(seg_body)
-            if frac is None:
-                seg_body.append([Paragraph(escape(txt), _grpst), P('', C)])
-                seg_sty.extend([('BACKGROUND', (0, r), (-1, r), _GRP), ('SPAN', (0, r), (1, r))])
-            else:
-                seg_body.append([Paragraph(escape(txt), _grpst), Paragraph(escape(frac), _grpcst)])
-                seg_sty.append(('BACKGROUND', (0, r), (-1, r), _GRP))
+            qcell = Paragraph(escape(frac), _grpcst) if frac else P('', C)
+            seg_body.append([Paragraph(escape(txt), _grpst), qcell])
+            seg_sty.append(('BACKGROUND', (0, r), (-1, r), _L1BG))
+            if not frac:
+                seg_sty.append(('SPAN', (0, r), (1, r)))
 
         def _sub(txt):
             r = len(seg_body); seg_body.append([Paragraph(escape(txt), _subst), P('', C)])
-            seg_sty.extend([('BACKGROUND', (0, r), (-1, r), _SUBC), ('SPAN', (0, r), (1, r))])
+            seg_sty.extend([('SPAN', (0, r), (1, r)), ('LEFTPADDING', (0, r), (0, r), 20)])
 
-        def _it(txt, qty, den):
-            seg_body.append([P('   ' + txt, C), P('%d/%d' % (qty, den), Cc)])
+        def _it(txt, qty, den, indent=20):
+            r = len(seg_body)
+            seg_body.append([P(txt, C), P('%d/%d' % (qty, den), Cc)])
+            seg_sty.append(('LEFTPADDING', (0, r), (0, r), indent))
 
         _grp('Pendientes por revisar')
         _it('Amonestaciones por verificar', _pend, _total)
         _it('Notificación verbal', _notif, _total)
         _grp('Amonestaciones revisadas', '%d/%d' % (_revis, _total))
         _sub('Por resultado')
-        _it('Cumplidas', _cumpl, _revis or 1)
-        _it('Incumplidas', _incum, _revis or 1)
+        _it('Cumplidas', _cumpl, _revis or 1, 32)
+        _it('Incumplidas', _incum, _revis or 1, 32)
         _sub('Por sanción')
-        _it('Con multa', _con_multa, _revis or 1)
-        _it('Por multar', _por_multar, _revis or 1)
-        _it('Sin multa', _sin_multa, _revis or 1)
+        _it('Con multa', _con_multa, _revis or 1, 32)
+        _it('Por multar', _por_multar, _revis or 1, 32)
+        _it('Sin multa', _sin_multa, _revis or 1, 32)
         seg_t = Table(seg_body, colWidths=[6.2 * cm, 2.4 * cm])
         seg_t.setStyle(TableStyle(seg_sty))
         if multa_prob:
