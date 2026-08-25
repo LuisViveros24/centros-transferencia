@@ -476,7 +476,7 @@ def _plazo_texto(plazo_horas):
         return 'El mismo día'
     return f'{plazo_horas} horas'
 
-def _fotos_a_pdf(fotos_dec, meta_lines):
+def _fotos_a_pdf(fotos_dec, meta_lines, titulo='Control de domicilios'):
     """Genera un PDF (bytes) con una portada de datos + una página por foto."""
     from PIL import Image, ImageDraw, ImageFont
     W, H = 1240, 1754  # ~A4 a 150 dpi
@@ -488,7 +488,7 @@ def _fotos_a_pdf(fotos_dec, meta_lines):
     except Exception:
         f_title = ImageFont.load_default()
         f_body  = ImageFont.load_default()
-    draw.text((80, 80), 'Control de domicilios', font=f_title, fill='black')
+    draw.text((80, 80), titulo, font=f_title, fill='black')
     y = 180
     for line in meta_lines:
         draw.text((80, y), line, font=f_body, fill='black')
@@ -505,6 +505,19 @@ def _fotos_a_pdf(fotos_dec, meta_lines):
                   append_images=pages[1:] if len(pages) > 1 else [])
     buf.seek(0)
     return buf.read()
+
+def _append_resultado(existing_pdf, foto_dec, meta_lines):
+    """Agrega una página 'Resultado de reinspección' (portada + foto) al foto_pdf
+    existente. Si no hay PDF previo, devuelve solo el de resultado. Devuelve bytes."""
+    resultado_pdf = _fotos_a_pdf([foto_dec], meta_lines, titulo='Resultado de reinspección')
+    if not existing_pdf:
+        return resultado_pdf
+    from pypdf import PdfReader, PdfWriter
+    w = PdfWriter()
+    w.append(PdfReader(io.BytesIO(bytes(existing_pdf))))
+    w.append(PdfReader(io.BytesIO(resultado_pdf)))
+    out = io.BytesIO(); w.write(out); out.seek(0)
+    return out.read()
 
 def _decode_data_url(s):
     """Convierte 'data:image/jpeg;base64,AAAA' en (mime, bytes). Devuelve (None, None) si falla."""
@@ -930,23 +943,48 @@ def cumplir_domicilio(rid):
     # resultado: 'incumplimiento' o 'cumplido' (por defecto). Ambos cierran el plazo.
     incumplimiento = (d.get('resultado') == 'incumplimiento') or bool(d.get('incumplimiento'))
     por = (request.authorization.username if request.authorization else '') or ''
+    # Foto opcional del resultado de la reinspección (se anexa al PDF del caso)
+    fmime, fraw = _decode_data_url(d.get('foto_resultado'))
     conn = get_db()
     try:
         with conn:
-            with conn.cursor() as cur:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                nuevo_pdf = None
+                if fraw:
+                    cur.execute("SELECT folio, folio_acta, foto_pdf FROM domicilios WHERE id=%s", (rid,))
+                    row = cur.fetchone()
+                    if not row:
+                        return jsonify({'error': 'Domicilio no encontrado'}), 404
+                    meta = [
+                        f"Folio captura: {row['folio']}",
+                        f"Folio acta: {row.get('folio_acta') or '—'}",
+                        f"Fecha de reinspección: {date.today()}",
+                        f"Resultado: {'Incumplimiento' if incumplimiento else 'Cumplió'}",
+                        f"Multa: {'Sí' if multa else 'No'}",
+                        f"Canalizado (por multar): {'Sí' if canalizar else 'No'}",
+                        f"Confirmó: {por}",
+                        f"Observaciones: {obs or '—'}",
+                    ]
+                    try:
+                        nuevo_pdf = _append_resultado(row.get('foto_pdf'), (fmime, fraw), meta)
+                    except Exception as e:
+                        print('  (no se pudo anexar foto de resultado', rid, e, ')')
+                        nuevo_pdf = None
                 cur.execute(
                     "UPDATE domicilios SET cumplido=TRUE, cumplido_en=now(), "
                     "cumplido_obs=%s, cumplido_por=%s, multa=%s, incumplimiento=%s, "
                     "canalizado_ingresos=%s, "
                     "canalizado_en = CASE WHEN %s THEN now() ELSE NULL END, "
-                    "canalizado_por = CASE WHEN %s THEN %s ELSE NULL END "
+                    "canalizado_por = CASE WHEN %s THEN %s ELSE NULL END, "
+                    "foto_pdf = COALESCE(%s, foto_pdf) "
                     "WHERE id=%s",
-                    (obs, por, multa, incumplimiento, canalizar, canalizar, canalizar, por, rid))
+                    (obs, por, multa, incumplimiento, canalizar, canalizar, canalizar, por,
+                     psycopg2.Binary(nuevo_pdf) if nuevo_pdf else None, rid))
                 if cur.rowcount == 0:
                     return jsonify({'error': 'Domicilio no encontrado'}), 404
     finally:
         conn.close()
-    return jsonify({'ok': True})
+    return jsonify({'ok': True, 'foto_agregada': bool(nuevo_pdf)})
 
 @app.route('/api/canalizados', methods=['GET'])
 @requiere_admin

@@ -838,6 +838,9 @@
     </label>
     <label style="font-size:12px;color:var(--text2)">Observaciones / resolución</label>
     <textarea id="pl-modal-obs" maxlength="500" style="width:100%;min-height:92px;margin-top:4px" placeholder="Ej. Se verificó en sitio; el predio fue limpiado / el comercio atendió la notificación..."></textarea>
+    <label style="font-size:12px;color:var(--text2);display:block;margin-top:10px">Foto del resultado (opcional)</label>
+    <input type="file" id="pl-modal-foto" accept="image/*" capture="environment" onchange="onFotoResultado(this)" style="font-size:13px;margin-top:4px">
+    <div id="pl-modal-foto-preview" style="margin-top:8px"></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
       <button class="btn btn-ghost" onclick="cerrarModalPlazo()">Cancelar</button>
       <button class="btn btn-primary" id="pl-modal-guardar" onclick="guardarCumplimiento()">Confirmar resultado</button>
@@ -1132,7 +1135,16 @@ async function updateNavBadges() {
 // ── Rol del usuario ────────────────────────────────────────────
 let ROL = 'admin';
 // ── Módulo de Plazos (seguimiento de cumplimiento) ─────────────
-let _plModalId = null, _plMulta = null, _plResultado = null;
+let _plModalId = null, _plMulta = null, _plResultado = null, _plFotoResultado = null;
+function onFotoResultado(input){
+  var f = input.files && input.files[0];
+  if (!f){ _plFotoResultado = null; document.getElementById('pl-modal-foto-preview').innerHTML=''; return; }
+  comprimirImagen(f, 1280, 0.7).then(function(dataUrl){
+    _plFotoResultado = dataUrl;
+    document.getElementById('pl-modal-foto-preview').innerHTML =
+      '<img src="' + dataUrl + '" style="max-height:110px;border-radius:8px;border:1px solid var(--border,#ddd)"/>';
+  }).catch(function(){ toast('No se pudo procesar la imagen.'); _plFotoResultado = null; });
+}
 function setMulta(v){
   _plMulta = v;
   document.querySelectorAll('.pl-multa-opt').forEach(function(b){
@@ -1211,10 +1223,12 @@ async function renderPlazos(){
 function verPdfDom(id){ window.open(location.origin + '/api/domicilios/' + id + '/pdf?inline=1', '_blank'); }
 function abrirModalPlazo(id, folio){
   _plModalId = id;
-  _plMulta = null; _plResultado = null;
+  _plMulta = null; _plResultado = null; _plFotoResultado = null;
   document.querySelectorAll('.pl-multa-opt').forEach(function(b){ b.classList.remove('btn-primary'); b.classList.add('btn-ghost'); });
   document.querySelectorAll('.pl-result-opt').forEach(function(b){ b.classList.remove('btn-primary','btn-danger'); b.classList.add('btn-ghost'); });
   document.getElementById('pl-modal-canalizar').checked = false;
+  document.getElementById('pl-modal-foto').value = '';
+  document.getElementById('pl-modal-foto-preview').innerHTML = '';
   document.getElementById('pl-modal-sub').textContent = 'Domicilio ' + folio;
   document.getElementById('pl-modal-obs').value = '';
   document.getElementById('pl-modal').style.display = 'flex';
@@ -1229,7 +1243,7 @@ async function guardarCumplimiento(){
   const btn = document.getElementById('pl-modal-guardar');
   btn.disabled = true; btn.textContent = 'Guardando...';
   try {
-    await api('/api/domicilios/' + _plModalId + '/cumplir', { method:'POST', body: JSON.stringify({ obs: obs, multa: _plMulta === 'si', canalizar: canalizar, resultado: _plResultado }) });
+    await api('/api/domicilios/' + _plModalId + '/cumplir', { method:'POST', body: JSON.stringify({ obs: obs, multa: _plMulta === 'si', canalizar: canalizar, resultado: _plResultado, foto_resultado: _plFotoResultado }) });
     toast(_plResultado === 'incumplimiento' ? 'Registrado como incumplimiento.' : 'Registrado como cumplido.');
     cerrarModalPlazo();
     renderPlazos();

@@ -4,3 +4,4 @@ gunicorn
 openpyxl
 Pillow
 reportlab
+pypdf
