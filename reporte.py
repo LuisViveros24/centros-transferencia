@@ -159,13 +159,32 @@ def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubier
             ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#dfe4ea')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('TOPPADDING', (0, 0), (-1, -1), 2.5), ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5)]))
         if multa_prob:
-            m_items = sorted(multa_prob.items(), key=lambda x: -x[1])
-            multas_col = mini('Multas por problemática', m_items, _cols('Multas por problemática', m_items))
+            multas_col = columna('Multas por problemática', multa_prob)
         else:
             multas_col = Paragraph('Sin multas registradas en el periodo.', NOTE)
         seg_row = Table([[seg_t, multas_col]], colWidths=[9.0 * cm, 8.0 * cm])
         seg_row.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
         seg_block.append(seg_row)
+
+        # Gráficas de pay (con %) de las particiones del seguimiento
+        def col_fija(titulo, items, hx):
+            return Table([[mini(titulo, items, hx)], [Spacer(1, 3)], [_pie(items, hx)]],
+                         colWidths=[7.6 * cm], style=[('ALIGN', (0, 0), (-1, -1), 'CENTER'), ('VALIGN', (0, 0), (-1, -1), 'TOP')])
+        pays = []
+        res_items = [('Cumplidos', seguimiento.get('cumplidos', 0)), ('Incumplimientos', seguimiento.get('incumplimientos', 0))]
+        if sum(v for _, v in res_items) > 0:
+            pays.append(col_fija('Resultado', res_items, ['#27ae60', '#e74c3c']))
+        multa_items = [('Con multa', seguimiento.get('con_multa', 0)), ('Sin multa', seguimiento.get('sin_multa', 0))]
+        if sum(v for _, v in multa_items) > 0:
+            pays.append(col_fija('Multa', multa_items, ['#e67e22', '#3b82f6']))
+        if pays:
+            while len(pays) < 3:
+                pays.append('')
+            pay_row = Table([pays], colWidths=[8.5 * cm, 8.5 * cm, 8.5 * cm])
+            pay_row.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'), ('ALIGN', (0, 0), (-1, -1), 'LEFT')]))
+            seg_block.append(Spacer(1, 10))
+            seg_block.append(pay_row)
+
         seg_block.append(Paragraph('Nota: un mismo caso puede llevar multa o no y ser canalizado a la dirección correspondiente. Las multas se cuentan por cada problemática del folio.', NOTE))
         S.append(PageBreak())
         S.extend(seg_block)
