@@ -41,12 +41,12 @@ def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubier
         por_eq[k] = por_eq.get(k, 0) + 1
         por_uso[r.get('uso') or 'Ambos'] = por_uso.get(r.get('uso') or 'Ambos', 0) + 1
         es_multa = (r.get('multa') is True) and (str(r.get('accion') or '').strip() == 'Amonestado')
-        for p in (r.get('problematica') or '').split(','):
-            p = p.strip().split(':')[0].strip()
-            if p:
-                por_prob[p] = por_prob.get(p, 0) + 1
-                if es_multa:
-                    multa_prob[p] = multa_prob.get(p, 0) + 1
+        partes = [x.strip().split(':')[0].strip() for x in (r.get('problematica') or '').split(',') if x.strip()]
+        for p in partes:
+            por_prob[p] = por_prob.get(p, 0) + 1
+        # Multas: una por caso, por su problemática principal (la primera del folio)
+        if es_multa and partes:
+            multa_prob[partes[0]] = multa_prob.get(partes[0], 0) + 1
 
     st = getSampleStyleSheet()
     H1 = ParagraphStyle('h1', parent=st['Title'], fontSize=16, textColor=DARK, spaceAfter=2)
@@ -185,7 +185,7 @@ def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubier
             seg_block.append(Spacer(1, 10))
             seg_block.append(pay_row)
 
-        seg_block.append(Paragraph('Nota: un mismo caso puede llevar multa o no y ser canalizado a la dirección correspondiente. Las multas se cuentan por cada problemática del folio.', NOTE))
+        seg_block.append(Paragraph('Nota: un mismo caso puede llevar multa o no y ser canalizado a la dirección correspondiente. Cada multa se cuenta una vez, por su problemática principal (la primera del folio).', NOTE))
         S.append(PageBreak())
         S.extend(seg_block)
 

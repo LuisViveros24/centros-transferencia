@@ -790,12 +790,14 @@ def dashboard_domicilios():
     for r in prob_rows:
         # La multa aplica solo a amonestaciones (mismo criterio que el desglose Con/Sin multa)
         es_multa = (r.get('multa') is True) and (str(r.get('accion') or '').strip() == 'Amonestado')
-        for p in (r['problematica'] or '').split(','):
-            p = p.strip()
-            if p:
-                prob_counts[p] = prob_counts.get(p, 0) + 1
-                if es_multa:
-                    multa_prob_counts[p] = multa_prob_counts.get(p, 0) + 1
+        partes = [p.strip() for p in (r['problematica'] or '').split(',') if p.strip()]
+        for p in partes:
+            prob_counts[p] = prob_counts.get(p, 0) + 1
+        # Multas: una por caso, por su problemática principal (la primera del folio),
+        # para que el total cuadre con el número de multas.
+        if es_multa and partes:
+            principal = partes[0]
+            multa_prob_counts[principal] = multa_prob_counts.get(principal, 0) + 1
     por_problematica = sorted(
         [{'k': k, 'c': v} for k, v in prob_counts.items()],
         key=lambda x: -x['c'])
