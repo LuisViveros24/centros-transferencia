@@ -773,9 +773,11 @@ def dashboard_domicilios():
                     "SELECT "
                     "COUNT(*) FILTER (WHERE COALESCE(cumplido,false) AND NOT COALESCE(incumplimiento,false)) cumplidos, "
                     "COUNT(*) FILTER (WHERE COALESCE(cumplido,false) AND COALESCE(incumplimiento,false)) incumplimientos, "
-                    # Multa aplica solo a amonestaciones (los notificados no cuentan en el desglose)
+                    # Con multa: revisados con multa (aplica a amonestaciones).
+                    # Sin multa: TODO lo revisado (cumplido) que no llevó multa, para que
+                    # Con multa + Sin multa = total revisados (incluye notificados).
                     "COUNT(*) FILTER (WHERE multa IS TRUE AND TRIM(COALESCE(accion,''))='Amonestado') con_multa, "
-                    "COUNT(*) FILTER (WHERE multa IS FALSE AND TRIM(COALESCE(accion,''))='Amonestado') sin_multa, "
+                    "COUNT(*) FILTER (WHERE COALESCE(cumplido,false) AND NOT (multa IS TRUE AND TRIM(COALESCE(accion,''))='Amonestado')) sin_multa, "
                     "COUNT(*) FILTER (WHERE COALESCE(canalizado_ingresos,false)) canalizados "
                     "FROM domicilios" + base_where, params)
                 pcfg = {r['clave']: r['valor'] for r in qa(
@@ -1056,7 +1058,8 @@ def reporte_domicilios_pdf():
             seguimiento['incumplimientos'] += 1
         if r.get('multa') is True and amon:
             seguimiento['con_multa'] += 1
-        if r.get('multa') is False and amon:
+        # Sin multa: todo lo revisado que no llevó multa (con_multa + sin_multa = revisados)
+        if r['cumplido'] and not (r.get('multa') is True and amon):
             seguimiento['sin_multa'] += 1
         if r['canalizado_ingresos']:
             seguimiento['canalizados'] += 1
