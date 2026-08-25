@@ -132,7 +132,7 @@ def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubier
             ('Incumplimientos', seguimiento.get('incumplimientos', 0)),
             ('Con multa', seguimiento.get('con_multa', 0)),
             ('Sin multa', seguimiento.get('sin_multa', 0)),
-            ('Canalizados a Ingresos', seguimiento.get('canalizados', 0)),
+            ('Por Multar', seguimiento.get('canalizados', 0)),
         ]
         seg_body = [[P('Concepto', CB), P('Cantidad', CBc)]]
         for k, v in seg_items:
@@ -149,7 +149,7 @@ def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubier
         seg_row = Table([[seg_t, multas_col]], colWidths=[9.0 * cm, 8.0 * cm])
         seg_row.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
         seg_block.append(seg_row)
-        seg_block.append(Paragraph('Nota: un mismo caso puede llevar multa o no y ser canalizado a Ingresos por abandono. Las multas se cuentan por cada problemática del folio.', NOTE))
+        seg_block.append(Paragraph('Nota: un mismo caso puede llevar multa o no y ser canalizado a la dirección correspondiente. Las multas se cuentan por cada problemática del folio.', NOTE))
         S.append(PageBreak())
         S.extend(seg_block)
 
