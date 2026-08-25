@@ -146,22 +146,46 @@ def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubier
         _con_multa = seguimiento.get('con_multa', 0)
         _por_multar = seguimiento.get('canalizados', 0)
         _sin_multa = max(0, seguimiento.get('sin_multa', 0) - _por_multar)
+        _cumpl = seguimiento.get('cumplidos', 0)
+        _incum = seguimiento.get('incumplimientos', 0)
+        _pend = seguimiento.get('vencidos', 0)
+        _revis = _cumpl + _incum
         seg_block = [Paragraph('Seguimiento de plazos', H2)]
-        seg_items = [
-            ('Amonestaciones por verificar', seguimiento.get('vencidos', 0)),
-            ('Cumplidos', seguimiento.get('cumplidos', 0)),
-            ('Incumplimientos', seguimiento.get('incumplimientos', 0)),
-            ('Con multa', _con_multa),
-            ('Sin multa', _sin_multa),
-            ('Por Multar', _por_multar),
-        ]
-        seg_body = [[P('Concepto', CB), P('Cantidad', CBc)]]
-        for k, v in seg_items:
-            seg_body.append([P(k, C), P(v, Cc)])
+        seg_block.append(Paragraph('De las <b>%d</b> amonestaciones revisadas, se muestran dos desgloses del mismo total: por <b>resultado</b> (cumplió / incumplió) y por <b>sanción</b> (multa). "Amonestaciones por verificar" son aparte: las %d que aún faltan revisar.'
+                                   % (_revis, _pend), NOTE))
+        # Tabla agrupada (grupo con banda oscura, subtítulo con banda clara, ítem con sangría)
+        _GRP = colors.HexColor('#3d4a5a'); _SUBC = colors.HexColor('#e8edf1')
+        _grpst = ParagraphStyle('grp', parent=Cb, textColor=colors.white)
+        _subst = ParagraphStyle('subh', parent=C, fontName='Helvetica-Bold', textColor=DARK)
+        seg_body = [[P('Seguimiento', CB), P('Cantidad', CBc)]]
+        seg_sty = [('BACKGROUND', (0, 0), (-1, 0), DARK),
+                   ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#dfe4ea')),
+                   ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                   ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]
+
+        def _grp(txt):
+            r = len(seg_body); seg_body.append([Paragraph(escape(txt), _grpst), P('', C)])
+            seg_sty.extend([('BACKGROUND', (0, r), (-1, r), _GRP), ('SPAN', (0, r), (1, r))])
+
+        def _sub(txt):
+            r = len(seg_body); seg_body.append([Paragraph(escape(txt), _subst), P('', C)])
+            seg_sty.extend([('BACKGROUND', (0, r), (-1, r), _SUBC), ('SPAN', (0, r), (1, r))])
+
+        def _it(txt, qty):
+            seg_body.append([P('   ' + txt, C), P(qty, Cc)])
+
+        _grp('Pendientes por revisar')
+        _it('Amonestaciones por verificar', _pend)
+        _grp('Amonestaciones revisadas: %d' % _revis)
+        _sub('Por resultado')
+        _it('Cumplidas', _cumpl)
+        _it('Incumplidas', _incum)
+        _sub('Por sanción')
+        _it('Con multa', _con_multa)
+        _it('Por multar', _por_multar)
+        _it('Sin multa', _sin_multa)
         seg_t = Table(seg_body, colWidths=[6.2 * cm, 2.4 * cm])
-        seg_t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), DARK), ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, GREY]),
-            ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#dfe4ea')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 2.5), ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5)]))
+        seg_t.setStyle(TableStyle(seg_sty))
         if multa_prob:
             multas_col = columna('Multas por problemática', multa_prob)
         else:
