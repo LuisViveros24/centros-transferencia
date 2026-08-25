@@ -427,10 +427,11 @@ SQL_LIMITE = ("CASE WHEN plazo_horas IS NULL THEN NULL "
               "WHEN plazo_horas = 0 THEN (fecha::timestamp + interval '23 hours 59 minutes') "
               "ELSE (fecha::timestamp + make_interval(hours => plazo_horas)) END")
 # ── Operativo: polígonos por equipo (por defecto; editable en la tabla config) ──
+# Relación oficial Equipo/Polígonos (doc DGSPM 20/08/2026, en orden de avance).
 POLY_ASIGNADOS = {
-    '1': [2, 9, 15, 16, 20, 26, 31, 39], '2': [4, 6, 12, 17, 21, 27, 32, 40],
-    '3': [1, 11, 14, 18, 28, 33, 34, 41], '4': [3, 8, 10, 19, 29, 30, 35, 42],
-    '5': [5, 7, 13, 24, 25, 37, 36, 38],
+    '1': [2, 4, 12, 15, 16, 20, 26, 31], '2': [1, 3, 6, 9, 21, 27, 32, 39],
+    '3': [5, 8, 7, 11, 14, 17, 18, 33], '4': [10, 13, 19, 28, 29, 34, 40, 41],
+    '5': [24, 25, 30, 37, 36, 35, 38, 42],
 }
 POLY_CUBIERTOS = [1, 2, 3, 4, 5, 6]
 POLY_COLORS = {'1': '#2980b9', '2': '#27ae60', '3': '#e67e22', '4': '#8e44ad', '5': '#e74c3c'}
