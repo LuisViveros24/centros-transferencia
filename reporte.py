@@ -152,81 +152,54 @@ def construir_reporte(rows, asignados, colores, fecha_txt, manzanas=None, cubier
         _revis = _cumpl + _incum
         _total = len(rows) or 1
         _notif = sum(1 for r in rows if str(r.get('accion') or '').strip() == 'Notificado')
-        seg_block = [Paragraph('Seguimiento de plazos', H2)]
-        seg_block.append(Paragraph('De las <b>%d</b> amonestaciones revisadas, se muestran dos desgloses del mismo total: por <b>resultado</b> (cumplió / incumplió) y por <b>sanción</b> (multa). "Amonestaciones por verificar" son las %d que aún faltan revisar. La <b>notificación verbal</b> (%d) es un predio que realizó la limpieza en el momento del llamado de atención; se contabiliza en pendientes por revisar. Los totales de grupo se muestran sobre el total de domicilios (/%d) y los detalles sobre su grupo.'
-                                   % (_revis, _pend, _notif, _total), NOTE))
-        # Tabla jerárquica de lectura natural: encabezado oscuro, grupos con banda
-        # tenue, subtítulos sin banda y hojas con sangría; solo separadores horizontales.
-        _L1BG = colors.HexColor('#e9eef3'); _SEP = colors.HexColor('#e3e8ec')
-        _grpst = ParagraphStyle('grp', parent=C, fontName='Helvetica-Bold', textColor=DARK)
-        _grpcst = ParagraphStyle('grpc', parent=_grpst, alignment=1)
-        _subst = ParagraphStyle('subh', parent=C, fontName='Helvetica-BoldOblique',
-                                textColor=colors.HexColor('#5a6a78'), fontSize=8)
-        seg_body = [[P('Seguimiento', CB), P('Cantidad', CBc)]]
-        seg_sty = [('BACKGROUND', (0, 0), (-1, 0), DARK),
-                   ('LINEBELOW', (0, 0), (-1, -1), 0.4, _SEP),
-                   ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                   ('TOPPADDING', (0, 0), (-1, -1), 3.5), ('BOTTOMPADDING', (0, 0), (-1, -1), 3.5),
-                   ('LEFTPADDING', (0, 0), (0, -1), 8)]
+        _pend_total = _pend + _notif  # pendientes por revisar (por verificar + notificación)
+        # ── Semáforo (tarjetas de color) + narrado en palabras ──
+        NUM = ParagraphStyle('cardnum', parent=st['Normal'], fontName='Helvetica-Bold', fontSize=20, leading=21)
+        LBL = ParagraphStyle('cardlbl', parent=st['Normal'], fontSize=7.6, leading=9, textColor=DARK)
+        NAR = ParagraphStyle('nar', parent=st['Normal'], fontSize=11, leading=16.5, textColor=DARK)
+        NEU = ('#1f5f9e', '#eef3f8'); WARN = ('#c9760f', '#fbeed7'); OK = ('#1f9d57', '#e6f4ec')
+        BAD = ('#d64339', '#fbe8e6'); VIA = ('#7a51b0', '#efe8f7')
 
-        def _grp(txt, frac=None):
-            r = len(seg_body)
-            qcell = Paragraph(escape(frac), _grpcst) if frac else P('', C)
-            seg_body.append([Paragraph(escape(txt), _grpst), qcell])
-            seg_sty.append(('BACKGROUND', (0, r), (-1, r), _L1BG))
-            if not frac:
-                seg_sty.append(('SPAN', (0, r), (1, r)))
+        def _card(num, label, hexc, bg):
+            n = Paragraph('<font color="%s">%s</font>' % (hexc, num), ParagraphStyle('cn', parent=NUM, textColor=colors.HexColor(hexc)))
+            l = Paragraph(escape(label), LBL)
+            t = Table([[n], [l]], colWidths=[5.6 * cm])
+            t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(bg)),
+                ('LINEBEFORE', (0, 0), (0, -1), 3, colors.HexColor(hexc)),
+                ('LEFTPADDING', (0, 0), (-1, -1), 9), ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (0, 0), 7), ('BOTTOMPADDING', (0, 0), (0, 0), 0),
+                ('TOPPADDING', (0, 1), (0, 1), 1), ('BOTTOMPADDING', (0, 1), (0, 1), 8)]))
+            return t
 
-        def _sub(txt):
-            r = len(seg_body); seg_body.append([Paragraph(escape(txt), _subst), P('', C)])
-            seg_sty.extend([('SPAN', (0, r), (1, r)), ('LEFTPADDING', (0, r), (0, r), 20)])
+        fila1 = [_card(_total, 'Predios inspeccionados', *NEU), _card(_pend_total, 'Pendientes por revisar', *WARN),
+                 _card(_revis, 'Ya revisados', *NEU), _card(_cumpl, 'Cumplieron', *OK)]
+        fila2 = [_card(_incum, 'No cumplieron', *BAD), _card(_con_multa, 'Con multa', *BAD),
+                 _card(_por_multar, 'Por multar', *VIA), _card(_sin_multa, 'Sin sanción', *OK)]
+        grid = Table([fila1, fila2], colWidths=[6.15 * cm] * 4)
+        grid.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 9),
+            ('TOPPADDING', (0, 0), (-1, -1), 0), ('BOTTOMPADDING', (0, 0), (-1, 0), 9)]))
 
-        def _it(txt, qty, den, indent=20):
-            r = len(seg_body)
-            seg_body.append([P(txt, C), P('%d/%d' % (qty, den), Cc)])
-            seg_sty.append(('LEFTPADDING', (0, r), (0, r), indent))
+        def _n(v, hexc):
+            return '<font color="%s"><b>%s</b></font>' % (hexc, v)
+        narr = [
+            Paragraph('Se inspeccionaron %s predios.' % _n(_total, NEU[0]), NAR),
+            Paragraph('%s siguen <b>pendientes por revisar</b> (%d amonestaciones por verificar y %d notificación verbal) y %s ya se revisaron.'
+                      % (_n(_pend_total, WARN[0]), _pend, _notif, _n(_revis, NEU[0])), NAR),
+            Paragraph('De los revisados, %s cumplieron y %s no cumplieron.'
+                      % (_n(_cumpl, OK[0]), _n(_incum, BAD[0])), NAR),
+            Paragraph('Se aplicó %s, %s pasan a la dirección correspondiente y %s quedaron sin sanción.'
+                      % (_n('multa a %d' % _con_multa, BAD[0]), _n(_por_multar, VIA[0]), _n(_sin_multa, OK[0])), NAR),
+        ]
 
-        _grp('Pendientes por revisar')
-        _it('Amonestaciones por verificar', _pend, _total)
-        _it('Notificación verbal', _notif, _total)
-        _grp('Amonestaciones revisadas', '%d/%d' % (_revis, _total))
-        _sub('Por resultado')
-        _it('Cumplidas', _cumpl, _revis or 1, 32)
-        _it('Incumplidas', _incum, _revis or 1, 32)
-        _sub('Por sanción')
-        _it('Con multa', _con_multa, _revis or 1, 32)
-        _it('Por multar', _por_multar, _revis or 1, 32)
-        _it('Sin multa', _sin_multa, _revis or 1, 32)
-        seg_t = Table(seg_body, colWidths=[6.2 * cm, 2.4 * cm])
-        seg_t.setStyle(TableStyle(seg_sty))
+        seg_block = [Paragraph('Seguimiento de plazos', H2), grid, Spacer(1, 7)]
+        seg_block.extend(narr)
         if multa_prob:
-            multas_col = columna('Multas por problemática', multa_prob)
-        else:
-            multas_col = Paragraph('Sin multas registradas en el periodo.', NOTE)
-        seg_row = Table([[seg_t, multas_col]], colWidths=[9.0 * cm, 8.0 * cm])
-        seg_row.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
-        seg_block.append(seg_row)
-
-        # Gráficas de pay (con %) de las particiones del seguimiento
-        def col_fija(titulo, items, hx):
-            return Table([[mini(titulo, items, hx)], [Spacer(1, 3)], [_pie(items, hx)]],
-                         colWidths=[7.6 * cm], style=[('ALIGN', (0, 0), (-1, -1), 'CENTER'), ('VALIGN', (0, 0), (-1, -1), 'TOP')])
-        pays = []
-        res_items = [('Cumplidos', seguimiento.get('cumplidos', 0)), ('Incumplimientos', seguimiento.get('incumplimientos', 0))]
-        if sum(v for _, v in res_items) > 0:
-            pays.append(col_fija('Resultado', res_items, ['#27ae60', '#e74c3c']))
-        multa_items = [('Con multa', _con_multa), ('Por multar', _por_multar), ('Sin multa', _sin_multa)]
-        if sum(v for _, v in multa_items) > 0:
-            pays.append(col_fija('Multa', multa_items, ['#e67e22', '#9b59b6', '#3b82f6']))
-        if pays:
-            while len(pays) < 3:
-                pays.append('')
-            pay_row = Table([pays], colWidths=[8.5 * cm, 8.5 * cm, 8.5 * cm])
-            pay_row.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'), ('ALIGN', (0, 0), (-1, -1), 'LEFT')]))
-            seg_block.append(Spacer(1, 10))
-            seg_block.append(pay_row)
-
-        seg_block.append(Paragraph('Nota: un mismo caso puede llevar multa o no y ser canalizado a la dirección correspondiente. Cada multa se cuenta una vez, por su problemática principal (la primera del folio).', NOTE))
+            seg_block.append(Spacer(1, 11))
+            m_items = sorted(multa_prob.items(), key=lambda x: -x[1])
+            seg_block.append(mini('Multas por problemática', m_items, _cols('Multas por problemática', m_items)))
+        seg_block.append(Spacer(1, 8))
+        seg_block.append(Paragraph('Nota: un mismo caso puede llevar multa o no y ser canalizado a la dirección correspondiente. La notificación verbal es un predio que realizó la limpieza en el momento del llamado; cuenta en pendientes por revisar.', NOTE))
         S.append(PageBreak())
         S.extend(seg_block)
 
