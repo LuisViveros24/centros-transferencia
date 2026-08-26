@@ -614,14 +614,13 @@ def crear_domicilio():
 
     plazo_horas = d.get('plazo_horas')
     if plazo_horas in ('', None):
-        plazo_horas = None
-    else:
-        try:
-            plazo_horas = int(plazo_horas)   # 0 = el mismo día
-            if plazo_horas < 0:
-                plazo_horas = None
-        except (ValueError, TypeError):
-            return jsonify({'error': 'El plazo debe ser un número entero de horas (o 0 = el mismo día).'}), 400
+        return jsonify({'error': 'El plazo para atender es obligatorio.'}), 400
+    try:
+        plazo_horas = int(plazo_horas)   # 0 = el mismo día
+        if plazo_horas < 0:
+            return jsonify({'error': 'El plazo no puede ser negativo.'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'error': 'El plazo debe ser un número entero de horas (o 0 = el mismo día).'}), 400
 
     # Fotos: lista de data URLs (base64). Opcionales, máximo MAX_FOTOS.
     fotos_in = d.get('fotos') or []

@@ -673,7 +673,7 @@
           <div class="field"><label>Equipo que captura</label>
             <select id="dom-equipo"><option value="">— Seleccionar —</option></select>
           </div>
-          <div class="field"><label>Plazo para atender</label>
+          <div class="field"><label><span class="req">*</span> Plazo para atender</label>
             <select id="dom-plazo">
               <option value="">— Seleccionar —</option>
               <option value="0">El mismo día</option>
@@ -1528,6 +1528,7 @@ async function registrarDomicilio() {
   if (!direccion) { toast('La dirección es obligatoria.'); return; }
   if (!uso)       { toast('Selecciona el uso del predio.'); return; }
   if (uso === 'Comercial' && !comercio) { toast('Escribe el nombre del comercio.'); return; }
+  if (plazo === '') { toast('Selecciona un plazo para atender.'); return; }
   const btn = document.getElementById('btn-registrar-dom');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Guardando...';
