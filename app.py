@@ -412,7 +412,7 @@ FUNDAMENTOS = {
     'Vehículo Chatarra': {'art': 'Art. 200 y 209',                'tag': 'DS'},
     'Descarga de grasa': {'art': 'Art. 106 / 270 fr. XII',        'tag': 'DS'},
 }
-ACCIONES       = ('Notificado', 'Amonestado', 'Multado')
+ACCIONES       = ('Amonestado', 'Multado')
 # Equipos de captura: nombres provisionales; se editarán cuando lleguen los reales.
 EQUIPOS        = (
     'Equipo 1 · César Alvarado, Rafael Moisés y Cristina Estrada',

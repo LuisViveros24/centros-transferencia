@@ -2237,7 +2237,7 @@ buildPga('pga-sel-s');
 buildOpts('dom-uso', ['Comercial','Habitacional','Ambos']);
 buildOpts('dom-estado', ['Habitado','Deshabitado','Baldío']);
 buildOpts('dom-problematica', ['Escombro','Basura','Enyerbado','Desecho Vegetal','Desecho Vegetal Ajeno','Poda de Árboles','Vehículo Chatarra','Descarga de grasa','Otro'], true);
-buildOpts('dom-accion', ['Notificado','Amonestado','Multado']);
+buildOpts('dom-accion', ['Amonestado','Multado']);
 document.getElementById('dom-fecha').value = todayStr();
 document.getElementById('dom-equipo').innerHTML =
   '<option value="">— Seleccionar —</option>' + EQUIPOS_DOM.map(e => '<option>' + e + '</option>').join('');
