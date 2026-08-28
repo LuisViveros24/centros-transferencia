@@ -761,6 +761,7 @@
           <select id="pl-equipo" style="font-size:13px;padding:6px 10px" onchange="renderPlazos()">
             <option value="">Todos los equipos</option>
           </select>
+          <input id="pl-buscar" type="search" placeholder="Buscar folio o folio de acta…" oninput="filtrarPlazos()" style="font-size:13px;padding:6px 10px;min-width:200px" autocomplete="off">
           <button class="btn btn-primary" style="padding:6px 14px;font-size:13px" onclick="renderPlazos()">Actualizar</button>
           <span id="pl-count" style="color:var(--text2);font-size:13px;margin-left:auto"></span>
         </div>
@@ -1149,7 +1150,7 @@ async function updateNavBadges() {
 // ── Rol del usuario ────────────────────────────────────────────
 let ROL = 'admin';
 // ── Módulo de Plazos (seguimiento de cumplimiento) ─────────────
-let _plModalId = null, _plMulta = null, _plResultado = null, _plFotoResultado = null, _plEditar = false, _plRowsById = {};
+let _plModalId = null, _plMulta = null, _plResultado = null, _plFotoResultado = null, _plEditar = false, _plRowsById = {}, _plAllRows = [];
 function onFotoResultado(input){
   var f = input.files && input.files[0];
   if (!f){ _plFotoResultado = null; document.getElementById('pl-modal-foto-preview').innerHTML=''; return; }
@@ -1187,14 +1188,24 @@ function venceDisplay(s){
 async function renderPlazos(){
   const estado = document.getElementById('pl-estado').value;
   const equipo = document.getElementById('pl-equipo').value;
-  const body = document.getElementById('pl-body');
   let rows;
   try {
     rows = await api('/api/plazos?estado=' + encodeURIComponent(estado) + (equipo ? '&equipo=' + encodeURIComponent(equipo) : ''));
   } catch(e){ toast('No se pudieron cargar los plazos.'); return; }
-  document.getElementById('pl-count').textContent = rows.length + (rows.length===1 ? ' domicilio' : ' domicilios');
-  if (!rows.length){ body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--text2);padding:20px">Sin domicilios en este filtro.</td></tr>'; return; }
+  _plAllRows = rows;
   _plRowsById = {}; rows.forEach(function(r){ _plRowsById[r.id] = r; });
+  filtrarPlazos();
+}
+function filtrarPlazos(){
+  const body = document.getElementById('pl-body');
+  const q = (document.getElementById('pl-buscar').value || '').trim().toLowerCase();
+  const rows = q
+    ? _plAllRows.filter(function(r){
+        return String(r.folio||'').toLowerCase().includes(q)
+            || String(r.folio_acta||'').toLowerCase().includes(q); })
+    : _plAllRows;
+  document.getElementById('pl-count').textContent = rows.length + (rows.length===1 ? ' domicilio' : ' domicilios') + (q ? ' (filtrado)' : '');
+  if (!rows.length){ body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--text2);padding:20px">' + (q ? 'Sin coincidencias para “' + escHtml(q) + '”.' : 'Sin domicilios en este filtro.') + '</td></tr>'; return; }
   body.innerHTML = rows.map(function(r){
     const badge = r.estado_plazo === 'vencido'
       ? '<span style="background:rgba(239,68,68,.18);color:#ef4444;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">Vencido</span>'
