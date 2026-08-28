@@ -519,6 +519,18 @@ def _append_resultado(existing_pdf, foto_dec, meta_lines):
     out = io.BytesIO(); w.write(out); out.seek(0)
     return out.read()
 
+def _append_fotos(existing_pdf, fotos_dec, meta_lines, titulo='Fotos agregadas'):
+    """Anexa una portada + varias fotos al foto_pdf existente. Devuelve bytes."""
+    nuevo = _fotos_a_pdf(fotos_dec, meta_lines, titulo=titulo)
+    if not existing_pdf:
+        return nuevo
+    from pypdf import PdfReader, PdfWriter
+    w = PdfWriter()
+    w.append(PdfReader(io.BytesIO(bytes(existing_pdf))))
+    w.append(PdfReader(io.BytesIO(nuevo)))
+    out = io.BytesIO(); w.write(out); out.seek(0)
+    return out.read()
+
 def _decode_data_url(s):
     """Convierte 'data:image/jpeg;base64,AAAA' en (mime, bytes). Devuelve (None, None) si falla."""
     if not s or not isinstance(s, str) or ',' not in s:
@@ -984,6 +996,44 @@ def cumplir_domicilio(rid):
     finally:
         conn.close()
     return jsonify({'ok': True, 'foto_agregada': bool(nuevo_pdf)})
+
+@app.route('/api/domicilios/<int:rid>/fotos', methods=['POST'])
+@requiere_admin
+def agregar_fotos_domicilio(rid):
+    """Agrega fotos (del carrete o cámara) a un domicilio existente; se anexan
+    al PDF del caso. Solo admin. Body JSON: {fotos: [dataURL, ...]}."""
+    d = request.get_json(silent=True) or {}
+    fotos_in = d.get('fotos') or []
+    if len(fotos_in) > MAX_FOTOS:
+        return jsonify({'error': f'Máximo {MAX_FOTOS} fotografías por vez.'}), 400
+    dec = []
+    for f in fotos_in:
+        m, raw = _decode_data_url(f)
+        if raw:
+            dec.append((m, raw))
+    if not dec:
+        return jsonify({'error': 'No se recibieron fotografías válidas.'}), 400
+    por = (request.authorization.username if request.authorization else '') or ''
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT folio, folio_acta, foto_pdf FROM domicilios WHERE id=%s", (rid,))
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({'error': 'Domicilio no encontrado'}), 404
+                meta = [
+                    f"Folio captura: {row['folio']}",
+                    f"Folio acta: {row.get('folio_acta') or '—'}",
+                    f"Fotos agregadas: {date.today()}",
+                    f"Agregó: {por}",
+                ]
+                merged = _append_fotos(row.get('foto_pdf'), dec, meta, titulo='Fotos agregadas')
+                cur.execute("UPDATE domicilios SET foto_pdf=%s WHERE id=%s",
+                            (psycopg2.Binary(merged), rid))
+    finally:
+        conn.close()
+    return jsonify({'ok': True, 'fotos': len(dec)})
 
 @app.route('/api/canalizados', methods=['GET'])
 @requiere_admin

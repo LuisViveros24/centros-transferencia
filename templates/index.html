@@ -848,6 +848,20 @@
   </div>
 </div>
 
+<div id="pl-foto-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:center;justify-content:center;padding:16px">
+  <div class="card" style="max-width:460px;width:100%">
+    <div style="font-weight:700;font-size:16px;margin-bottom:2px">Agregar fotos al registro</div>
+    <div id="pl-foto-sub" style="color:var(--text2);font-size:13px;margin-bottom:12px"></div>
+    <label style="font-size:12px;color:var(--text2);display:block">Fotos (del carrete o de la cámara) — puedes elegir varias</label>
+    <input type="file" id="pl-foto-input" accept="image/*" multiple onchange="onFotosAgregar(this)" style="font-size:13px;margin-top:6px">
+    <div id="pl-foto-preview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-ghost" onclick="cerrarFotoModal()">Cancelar</button>
+      <button class="btn btn-primary" id="pl-foto-guardar" onclick="guardarFotosAgregar()">Guardar fotos</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const PGAS = ['ROVIROSA WADE','LEY SAULO','ESTERITO','RECOVERDE','COMPRESORA'];
 // Equipos que capturan domicilios: nombres provisionales; editar aquí cuando
@@ -1188,10 +1202,11 @@ async function renderPlazos(){
       : r.estado_plazo === 'cumplido'
       ? '<span style="background:rgba(34,197,94,.18);color:#22c55e;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">Cumplido</span>'
       : '<span style="background:rgba(245,158,11,.18);color:#f59e0b;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">Por vencer</span>';
-    // Columna PDF: botón en todos los que tienen PDF; "Sin PDF" en los que no.
-    const celdaPdf = r.has_pdf
+    // Columna PDF: Ver PDF (si tiene) + botón para agregar fotos (editar el registro).
+    const celdaPdf = (r.has_pdf
       ? '<button class="btn btn-ghost" style="padding:4px 12px;font-size:12px" onclick="verPdfDom(' + r.id + ')">Ver PDF</button>'
-      : '<span style="color:var(--text2);font-size:12px">Sin PDF</span>';
+      : '<span style="color:var(--text2);font-size:12px">Sin PDF</span>')
+      + '<br><button class="btn btn-ghost" style="padding:3px 10px;font-size:11px;margin-top:4px" onclick="editarPlazoFotos(' + r.id + ', \'' + String(r.folio).replace(/\x27/g,"") + '\')">+ Fotos</button>';
     // Columna Confirmar: botón en pendientes; ✓ resolución en los ya cumplidos.
     var celdaConf;
     if (r.estado_plazo === 'cumplido' || r.estado_plazo === 'incumplimiento'){
@@ -1221,6 +1236,44 @@ async function renderPlazos(){
   }).join('');
 }
 function verPdfDom(id){ window.open(location.origin + '/api/domicilios/' + id + '/pdf?inline=1', '_blank'); }
+// ── Editar registro: agregar fotos (del carrete o cámara) ──
+let _plFotoId = null, _plFotosAdd = [];
+function editarPlazoFotos(id, folio){
+  _plFotoId = id; _plFotosAdd = [];
+  document.getElementById('pl-foto-sub').textContent = 'Domicilio ' + folio + ' — las fotos se anexan al PDF del caso.';
+  document.getElementById('pl-foto-input').value = '';
+  document.getElementById('pl-foto-preview').innerHTML = '';
+  document.getElementById('pl-foto-modal').style.display = 'flex';
+}
+function cerrarFotoModal(){ _plFotoId = null; _plFotosAdd = []; document.getElementById('pl-foto-modal').style.display = 'none'; }
+function _renderFotoAddPrev(){
+  document.getElementById('pl-foto-preview').innerHTML = _plFotosAdd.map(function(src,i){
+    return '<div style="position:relative;width:80px;height:80px;border-radius:8px;overflow:hidden;border:1px solid var(--border,#ddd)">' +
+      '<img src="' + src + '" style="width:100%;height:100%;object-fit:cover"/>' +
+      '<button type="button" onclick="_quitarFotoAdd(' + i + ')" title="Quitar" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:13px;line-height:1">&times;</button></div>';
+  }).join('');
+}
+function _quitarFotoAdd(i){ _plFotosAdd.splice(i,1); _renderFotoAddPrev(); }
+function onFotosAgregar(input){
+  var files = Array.from(input.files || []); input.value = '';
+  files.forEach(function(f){
+    if(!f.type || !f.type.startsWith('image/')) return;
+    if(_plFotosAdd.length >= 5){ toast('Máximo 5 fotografías por vez.'); return; }
+    comprimirImagen(f, 1280, 0.7).then(function(d){ if(_plFotosAdd.length < 5){ _plFotosAdd.push(d); _renderFotoAddPrev(); } })
+      .catch(function(){ toast('No se pudo procesar una imagen.'); });
+  });
+}
+async function guardarFotosAgregar(){
+  if(!_plFotoId) return;
+  if(!_plFotosAdd.length){ toast('Elige al menos una foto.'); return; }
+  var btn = document.getElementById('pl-foto-guardar'); btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    var r = await api('/api/domicilios/' + _plFotoId + '/fotos', { method:'POST', timeoutMs:30000, body: JSON.stringify({ fotos: _plFotosAdd }) });
+    toast((r.fotos || _plFotosAdd.length) + ' foto(s) agregada(s).');
+    cerrarFotoModal(); renderPlazos();
+  } catch(e){ toast('No se pudieron agregar. ' + (e.message||'')); }
+  finally { btn.disabled = false; btn.textContent = 'Guardar fotos'; }
+}
 function abrirModalPlazo(id, folio){
   _plModalId = id;
   _plMulta = null; _plResultado = null; _plFotoResultado = null;
