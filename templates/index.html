@@ -651,7 +651,7 @@
         </div>
 
         <div class="field" style="margin-bottom:16px">
-          <label>Estado del predio</label>
+          <label><span class="req">*</span> Estado del predio</label>
           <div class="pga-grid" id="dom-estado"></div>
         </div>
 
@@ -1608,6 +1608,7 @@ async function registrarDomicilio() {
   if (!direccion) { toast('La dirección es obligatoria.'); return; }
   if (!uso)       { toast('Selecciona el uso del predio.'); return; }
   if (uso === 'Comercial' && !comercio) { toast('Escribe el nombre del comercio.'); return; }
+  if (!estado)    { toast('Selecciona el estado del predio (Habitado / Deshabitado / Baldío).'); return; }
   if (plazo === '') { toast('Selecciona un plazo para atender.'); return; }
   const btn = document.getElementById('btn-registrar-dom');
   btn.disabled = true;

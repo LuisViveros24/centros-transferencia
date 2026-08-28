@@ -603,6 +603,8 @@ def crear_domicilio():
         nombre_comercio = ''  # solo aplica a comercios
 
     estado       = (d.get('estado') or '').strip()
+    if not estado:
+        return jsonify({'error': 'El estado del predio (Habitado / Deshabitado / Baldío) es obligatorio.'}), 400
     equipo       = (d.get('equipo') or '').strip()
     accion       = (d.get('accion') or '').strip()
     folio_acta   = (d.get('folio_acta') or '').strip()
