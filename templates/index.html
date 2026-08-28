@@ -820,7 +820,7 @@
 
 <div id="pl-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:center;justify-content:center;padding:16px">
   <div class="card" style="max-width:460px;width:100%">
-    <div style="font-weight:700;font-size:16px;margin-bottom:2px">Confirmar resultado del plazo</div>
+    <div id="pl-modal-title" style="font-weight:700;font-size:16px;margin-bottom:2px">Confirmar resultado del plazo</div>
     <div id="pl-modal-sub" style="color:var(--text2);font-size:13px;margin-bottom:12px"></div>
     <label style="font-size:12px;color:var(--text2)">Resultado</label>
     <div style="display:flex;gap:8px;margin:4px 0 12px">
@@ -1149,7 +1149,7 @@ async function updateNavBadges() {
 // ── Rol del usuario ────────────────────────────────────────────
 let ROL = 'admin';
 // ── Módulo de Plazos (seguimiento de cumplimiento) ─────────────
-let _plModalId = null, _plMulta = null, _plResultado = null, _plFotoResultado = null;
+let _plModalId = null, _plMulta = null, _plResultado = null, _plFotoResultado = null, _plEditar = false, _plRowsById = {};
 function onFotoResultado(input){
   var f = input.files && input.files[0];
   if (!f){ _plFotoResultado = null; document.getElementById('pl-modal-foto-preview').innerHTML=''; return; }
@@ -1194,6 +1194,7 @@ async function renderPlazos(){
   } catch(e){ toast('No se pudieron cargar los plazos.'); return; }
   document.getElementById('pl-count').textContent = rows.length + (rows.length===1 ? ' domicilio' : ' domicilios');
   if (!rows.length){ body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--text2);padding:20px">Sin domicilios en este filtro.</td></tr>'; return; }
+  _plRowsById = {}; rows.forEach(function(r){ _plRowsById[r.id] = r; });
   body.innerHTML = rows.map(function(r){
     const badge = r.estado_plazo === 'vencido'
       ? '<span style="background:rgba(239,68,68,.18);color:#ef4444;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">Vencido</span>'
@@ -1216,7 +1217,8 @@ async function renderPlazos(){
       var ingBadge = r.canalizado_ingresos ? '<br><span style="color:#1a6fc4;font-size:11px;font-weight:600">→ Ingresos</span>' : '';
       var color = incum ? '#ef4444' : '#22c55e';
       var icono = incum ? '✗' : '✓';
-      celdaConf = '<span style="color:' + color + ';font-size:12px;font-weight:600" title="' + escHtml(tip) + '">' + icono + ' ' + (r.cumplido_por ? escHtml(r.cumplido_por) : (incum ? 'incumplió' : 'cumplido')) + escHtml(multaTxt) + '</span>' + ingBadge;
+      celdaConf = '<span style="color:' + color + ';font-size:12px;font-weight:600" title="' + escHtml(tip) + '">' + icono + ' ' + (r.cumplido_por ? escHtml(r.cumplido_por) : (incum ? 'incumplió' : 'cumplido')) + escHtml(multaTxt) + '</span>' + ingBadge
+        + '<br><button class="btn btn-ghost" style="padding:2px 10px;font-size:11px;margin-top:4px" onclick="abrirModalPlazo(' + r.id + ', \'' + String(r.folio).replace(/\x27/g,"") + '\')">Editar</button>';
     } else {
       celdaConf = '<button class="btn btn-primary" style="padding:4px 12px;font-size:12px" onclick="abrirModalPlazo(' + r.id + ', \'' + String(r.folio).replace(/'/g,"") + '\')">Confirmar</button>';
     }
@@ -1276,14 +1278,28 @@ async function guardarFotosAgregar(){
 }
 function abrirModalPlazo(id, folio){
   _plModalId = id;
-  _plMulta = null; _plResultado = null; _plFotoResultado = null;
+  _plFotoResultado = null;
+  var r = _plRowsById[id] || {};
+  _plEditar = (r.estado_plazo === 'cumplido' || r.estado_plazo === 'incumplimiento');
+  // Reset visual de los botones
   document.querySelectorAll('.pl-multa-opt').forEach(function(b){ b.classList.remove('btn-primary'); b.classList.add('btn-ghost'); });
   document.querySelectorAll('.pl-result-opt').forEach(function(b){ b.classList.remove('btn-primary','btn-danger'); b.classList.add('btn-ghost'); });
-  document.getElementById('pl-modal-canalizar').checked = false;
+  if (_plEditar){
+    // Precargar con los valores actuales de la confirmación
+    setResultado(r.estado_plazo === 'incumplimiento' ? 'incumplimiento' : 'cumplido');
+    if (r.multa === true) setMulta('si'); else if (r.multa === false) setMulta('no'); else _plMulta = null;
+    document.getElementById('pl-modal-canalizar').checked = !!r.canalizado_ingresos;
+    document.getElementById('pl-modal-obs').value = r.cumplido_obs || '';
+  } else {
+    _plMulta = null; _plResultado = null;
+    document.getElementById('pl-modal-canalizar').checked = false;
+    document.getElementById('pl-modal-obs').value = '';
+  }
   document.getElementById('pl-modal-foto').value = '';
   document.getElementById('pl-modal-foto-preview').innerHTML = '';
-  document.getElementById('pl-modal-sub').textContent = 'Domicilio ' + folio;
-  document.getElementById('pl-modal-obs').value = '';
+  document.getElementById('pl-modal-title').textContent = _plEditar ? 'Editar confirmación del plazo' : 'Confirmar resultado del plazo';
+  document.getElementById('pl-modal-sub').textContent = 'Domicilio ' + folio + (_plEditar ? ' — ya confirmado; puedes cambiar cualquier dato.' : '');
+  document.getElementById('pl-modal-guardar').textContent = _plEditar ? 'Guardar cambios' : 'Confirmar resultado';
   document.getElementById('pl-modal').style.display = 'flex';
 }
 function cerrarModalPlazo(){ _plModalId = null; document.getElementById('pl-modal').style.display = 'none'; }
@@ -1297,11 +1313,11 @@ async function guardarCumplimiento(){
   btn.disabled = true; btn.textContent = 'Guardando...';
   try {
     await api('/api/domicilios/' + _plModalId + '/cumplir', { method:'POST', body: JSON.stringify({ obs: obs, multa: _plMulta === 'si', canalizar: canalizar, resultado: _plResultado, foto_resultado: _plFotoResultado }) });
-    toast(_plResultado === 'incumplimiento' ? 'Registrado como incumplimiento.' : 'Registrado como cumplido.');
+    toast(_plEditar ? 'Confirmación actualizada.' : (_plResultado === 'incumplimiento' ? 'Registrado como incumplimiento.' : 'Registrado como cumplido.'));
     cerrarModalPlazo();
     renderPlazos();
-  } catch(e){ toast('No se pudo confirmar. ' + (e.message||'')); }
-  finally { btn.disabled = false; btn.textContent = 'Confirmar resultado'; }
+  } catch(e){ toast('No se pudo guardar. ' + (e.message||'')); }
+  finally { btn.disabled = false; btn.textContent = _plEditar ? 'Guardar cambios' : 'Confirmar resultado'; }
 }
 
 // ── Módulo Canalizados a Ingresos ──────────────────────────────
