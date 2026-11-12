@@ -121,7 +121,7 @@ class TestAdmin:
             assert client.get('/api/dashboard', headers=AUTH_ADMIN).status_code == 200
 
     def test_admin_ve_historial(self, client):
-        with patch('app.get_db', return_value=fake_db()):
+        with patch('app.get_db', return_value=fake_db(fetchone_value={'n': 0})):
             assert client.get('/api/registros', headers=AUTH_ADMIN).status_code == 200
 
     def test_admin_puede_registrar(self, client):

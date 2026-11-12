@@ -54,6 +54,10 @@ try:
             cur.execute('''
                 ALTER TABLE registros ADD COLUMN IF NOT EXISTS vale TEXT
             ''')
+            # Índices para el historial (filtros/orden más rápidos)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_registros_fecha ON registros(fecha)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_registros_tipo ON registros(tipo)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_registros_pga ON registros(pga)")
             # Agregar columna calle si la tabla ya existía sin ella
             cur.execute('''
                 ALTER TABLE registros ADD COLUMN IF NOT EXISTS calle TEXT
