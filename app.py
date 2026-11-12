@@ -62,6 +62,10 @@ def init_db():
                 cur.execute(
                     "ALTER TABLE registros ADD COLUMN IF NOT EXISTS vale TEXT"
                 )
+                # Índices para el historial (filtros/orden más rápidos)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_registros_fecha ON registros(fecha)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_registros_tipo ON registros(tipo)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_registros_pga ON registros(pga)")
                 cur.execute('''
                     CREATE TABLE IF NOT EXISTS config (
                         clave TEXT PRIMARY KEY,
@@ -280,24 +284,56 @@ def badges():
 @app.route('/api/registros', methods=['GET'])
 @requiere_admin
 def get_registros():
-    fecha = request.args.get('fecha')
-    tipo  = request.args.get('tipo')
+    """Historial paginado y filtrado del lado del servidor.
+    Devuelve {rows, total, limit, offset}. Los nombres de campo del WHERE
+    salen de listas blancas fijas (no de la entrada del usuario); los
+    valores van siempre parametrizados."""
+    args = request.args
+    where = ['1=1']
+    params = []
+    # Filtros exactos (selects)
+    for campo in ('tipo', 'pga', 'origen', 'vehiculo'):
+        v = (args.get(campo) or '').strip()
+        if v:
+            where.append(f'{campo} = %s'); params.append(v)
+    # Fecha exacta y rango
+    fecha = (args.get('fecha') or '').strip()
+    if fecha:
+        where.append('fecha = %s'); params.append(fecha)
+    fdesde = (args.get('fdesde') or '').strip()
+    if fdesde:
+        where.append('fecha >= %s'); params.append(fdesde)
+    fhasta = (args.get('fhasta') or '').strip()
+    if fhasta:
+        where.append('fecha <= %s'); params.append(fhasta)
+    # Filtros de texto (contiene, sin distinguir mayúsculas)
+    for campo in ('folio', 'nombre', 'telefono', 'calle', 'colonia', 'placa', 'obs', 'vale'):
+        v = (args.get(campo) or '').strip()
+        if v:
+            where.append(f'{campo} ILIKE %s'); params.append('%' + v + '%')
+    where_sql = ' AND '.join(where)
+    try:
+        limit = min(max(int(args.get('limit', 100)), 1), 500)
+    except (TypeError, ValueError):
+        limit = 100
+    try:
+        offset = max(int(args.get('offset', 0)), 0)
+    except (TypeError, ValueError):
+        offset = 0
     conn = get_db()
     try:
         with conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                q = "SELECT * FROM registros WHERE 1=1"
-                params = []
-                if fecha:
-                    q += " AND fecha=%s"; params.append(fecha)
-                if tipo:
-                    q += " AND tipo=%s"; params.append(tipo)
-                q += " ORDER BY id DESC"
-                cur.execute(q, params)
+                cur.execute(f'SELECT COUNT(*) AS n FROM registros WHERE {where_sql}', params)
+                total = cur.fetchone()['n']
+                cur.execute(
+                    f'SELECT * FROM registros WHERE {where_sql} ORDER BY id DESC LIMIT %s OFFSET %s',
+                    params + [limit, offset])
                 rows = cur.fetchall()
     finally:
         conn.close()
-    return jsonify([dict(r) for r in rows])
+    return jsonify({'rows': [dict(r) for r in rows], 'total': total,
+                    'limit': limit, 'offset': offset})
 
 @app.route('/api/registros', methods=['POST'])
 @requiere_auth

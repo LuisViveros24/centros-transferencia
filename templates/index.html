@@ -615,6 +615,9 @@
             <tbody id="h-body"></tbody>
           </table>
         </div>
+        <div id="h-more-wrap" style="display:none;justify-content:center;padding:12px">
+          <button id="h-more-btn" class="btn btn-ghost" onclick="cargarMasHistorial()">Cargar más</button>
+        </div>
       </div>
     </div>
 
@@ -2020,6 +2023,9 @@ function fechaDisplay(rawFecha) {
 // ── Historial: estado de filtros ───────────────────────────────
 let _historialRows = [];
 let _historialFiltros = { folio:'', tipo:'', fecha:'', pga:'', origen:'', nombre:'', telefono:'', calle:'', colonia:'', vehiculo:'', placa:'', obs:'', vale:'', fdesde:'', fhasta:'' };
+// Paginación del lado del servidor
+const _HIST_LIMIT = 100;
+let _histOffset = 0, _histTotal = 0, _histCargando = false;
 
 function matchesFiltroHistorial(r) {
   const f = _historialFiltros;
@@ -2069,20 +2075,22 @@ function filaHistorial(r) {
   '</tr>';
 }
 
-function aplicarFiltrosHistorial() {
-  const body = document.getElementById('h-body');
-  const filtered = _historialRows.filter(matchesFiltroHistorial);
-  document.getElementById('h-count').textContent = filtered.length + (filtered.length===1?' registro':' registros');
+// Cambiar un filtro recarga la primera página desde el servidor.
+function aplicarFiltrosHistorial() { renderHistorial(true); }
 
-  if (!filtered.length) {
+function pintarHistorial() {
+  const body = document.getElementById('h-body');
+  if (!_historialRows.length) {
     const hayFiltro = Object.values(_historialFiltros).some(v => v);
-    const msg = (!hayFiltro && _historialRows.length === 0)
-      ? 'No hay registros aún.'
-      : 'Ningún registro coincide con los filtros.';
+    const msg = hayFiltro ? 'Ningún registro coincide con los filtros.' : 'No hay registros aún.';
     body.innerHTML = '<tr><td colspan="18" style="text-align:center;color:var(--text2);padding:20px">' + msg + '</td></tr>';
   } else {
-    body.innerHTML = filtered.map(filaHistorial).join('');
+    body.innerHTML = _historialRows.map(filaHistorial).join('');
   }
+  document.getElementById('h-count').textContent =
+    'Mostrando ' + _historialRows.length + ' de ' + _histTotal + (_histTotal===1 ? ' registro' : ' registros');
+  const more = document.getElementById('h-more-wrap');
+  if (more) more.style.display = (_historialRows.length < _histTotal) ? 'flex' : 'none';
 
   // El conjunto visible cambió: limpiar selección para no arrastrar checks ocultos.
   const master = document.querySelector('#h-tbl thead input[type=checkbox]');
@@ -2114,15 +2122,38 @@ function limpiarFiltrosHistorial() {
   aplicarFiltrosHistorial();
 }
 
-// ── Historial ──────────────────────────────────────────────────
-async function renderHistorial() {
+// ── Historial (paginado desde el servidor) ─────────────────────
+function _histQuery(offset) {
+  const f = _historialFiltros;
+  const p = new URLSearchParams();
+  ['folio','tipo','fecha','pga','origen','nombre','telefono','calle','colonia','vehiculo','placa','obs','vale','fdesde','fhasta']
+    .forEach(k => { if (f[k]) p.set(k, f[k]); });
+  p.set('limit', _HIST_LIMIT); p.set('offset', offset);
+  return '/api/registros?' + p.toString();
+}
+
+async function renderHistorial(reset = true) {
+  if (_histCargando) return;
+  _histCargando = true;
+  if (reset) { _histOffset = 0; }
+  const btn = document.getElementById('h-more-btn');
+  if (btn && !reset) { btn.disabled = true; btn.textContent = 'Cargando...'; }
   try {
-    _historialRows = await api('/api/registros');
-    aplicarFiltrosHistorial();
+    const res = await api(_histQuery(reset ? 0 : _histOffset));
+    const rows = res.rows || [];
+    _histTotal = res.total || 0;
+    _historialRows = reset ? rows : _historialRows.concat(rows);
+    _histOffset = _historialRows.length;
+    pintarHistorial();
   } catch(e) {
     toast('Error al cargar el historial.');
+  } finally {
+    _histCargando = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Cargar más'; }
   }
 }
+
+function cargarMasHistorial() { renderHistorial(false); }
 
 // ── Historial — selección y eliminación ────────────────────────
 function actualizarBarraAccion() {
