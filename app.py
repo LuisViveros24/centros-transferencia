@@ -55,9 +55,13 @@ def init_db():
                         placa     TEXT,
                         m3        REAL DEFAULT 0,
                         obs       TEXT,
+                        vale      TEXT,
                         creado_en TIMESTAMP DEFAULT NOW()
                     )
                 ''')
+                cur.execute(
+                    "ALTER TABLE registros ADD COLUMN IF NOT EXISTS vale TEXT"
+                )
                 cur.execute('''
                     CREATE TABLE IF NOT EXISTS config (
                         clave TEXT PRIMARY KEY,
@@ -318,6 +322,11 @@ def crear_registro():
         if placa_norm != 'SINPLACAS' and not (6 <= len(placa_norm) <= 8):
             return jsonify({'error': 'Placa inválida: escribe de 6 a 8 letras/números, o "SIN PLACAS"'}), 400
 
+    # Número de vale obligatorio en salidas (folio del vale físico).
+    if d.get('tipo', 'ENTRADA') == 'SALIDA':
+        if not (d.get('vale') or '').strip():
+            return jsonify({'error': 'El número de vale es obligatorio en las salidas.'}), 400
+
     conn = get_db()
     try:
         with conn:
@@ -325,8 +334,8 @@ def crear_registro():
                 folio = next_folio(d.get('tipo', 'ENTRADA'), cur)
                 cur.execute('''
                     INSERT INTO registros
-                    (folio,tipo,fecha,hora,pga,detalle,origen,nombre,telefono,calle,colonia,vehiculo,placa,m3,obs)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    (folio,tipo,fecha,hora,pga,detalle,origen,nombre,telefono,calle,colonia,vehiculo,placa,m3,obs,vale)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ''', (
                     folio,
                     d.get('tipo', 'ENTRADA'),
@@ -342,7 +351,8 @@ def crear_registro():
                     d.get('vehiculo', ''),
                     d.get('placa', ''),
                     m3,
-                    d.get('obs', '')
+                    d.get('obs', ''),
+                    (d.get('vale', '') or '').strip()
                 ))
     finally:
         conn.close()
@@ -1523,7 +1533,7 @@ def export_excel():
     ws.title = 'Registros'
 
     headers = ['ID', 'Folio', 'Tipo', 'Fecha', 'Hora', 'PGA', 'Detalle/Carga',
-               'Origen', 'Nombre', 'Teléfono', 'Calle', 'Colonia', 'Vehículo', 'Placa', 'm³', 'Observaciones', 'Registrado']
+               'Origen', 'Nombre', 'Teléfono', 'Calle', 'Colonia', 'Vehículo', 'Placa', 'm³', 'Observaciones', 'Núm. de Vale', 'Registrado']
     header_fill = PatternFill(fill_type='solid', fgColor='1a6fc4')
     header_font = Font(bold=True, color='FFFFFF')
     for col, h in enumerate(headers, 1):
@@ -1537,10 +1547,11 @@ def export_excel():
             row['id'], row['folio'], row['tipo'], row['fecha'], row['hora'],
             row['pga'], row['detalle'], row['origen'], row['nombre'],
             row.get('telefono', ''), row['calle'], row['colonia'],
-            row['vehiculo'], row['placa'], row['m3'], row['obs'], row['creado_en']
+            row['vehiculo'], row['placa'], row['m3'], row['obs'],
+            row.get('vale', ''), row['creado_en']
         ])
 
-    col_widths = [6, 10, 8, 12, 8, 18, 18, 16, 22, 14, 18, 18, 18, 12, 8, 30, 18]
+    col_widths = [6, 10, 8, 12, 8, 18, 18, 16, 22, 14, 18, 18, 18, 12, 8, 30, 14, 18]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
 
