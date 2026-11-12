@@ -42,12 +42,17 @@ try:
                     placa     TEXT,
                     m3        REAL DEFAULT 0,
                     obs       TEXT,
+                    vale      TEXT,
                     creado_en TIMESTAMP DEFAULT NOW()
                 )
             ''')
             # Agregar columna nombre si la tabla ya existía sin ella
             cur.execute('''
                 ALTER TABLE registros ADD COLUMN IF NOT EXISTS nombre TEXT
+            ''')
+            # Agregar columna vale (Número de Vale físico de salida) si falta
+            cur.execute('''
+                ALTER TABLE registros ADD COLUMN IF NOT EXISTS vale TEXT
             ''')
             # Agregar columna calle si la tabla ya existía sin ella
             cur.execute('''

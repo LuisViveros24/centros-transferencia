@@ -91,8 +91,13 @@ class TestM3Obligatorio:
 
     def test_salida_con_m3_ok(self, client):
         r = self._post(client, {'tipo': 'SALIDA', 'fecha': '2026-07-15',
-                                'pga': 'ESTERITO', 'm3': 14})
+                                'pga': 'ESTERITO', 'm3': 14, 'vale': 'V-123'})
         assert r.status_code == 201
+
+    def test_salida_sin_vale_devuelve_400(self, client):
+        r = self._post(client, {'tipo': 'SALIDA', 'fecha': '2026-07-15',
+                                'pga': 'ESTERITO', 'm3': 14})
+        assert r.status_code == 400
 
 
 class TestPlacaFormato:
@@ -121,7 +126,7 @@ class TestPlacaFormato:
     def test_salida_sin_placa_ok(self, client):
         # El formato de placa solo aplica a entradas
         r = self._post(client, {'tipo': 'SALIDA', 'fecha': '2026-07-15',
-                                'pga': 'ESTERITO', 'm3': 14})
+                                'pga': 'ESTERITO', 'm3': 14, 'vale': 'V-123'})
         assert r.status_code == 201
 
 

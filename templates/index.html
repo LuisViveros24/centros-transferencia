@@ -354,8 +354,9 @@
             </select>
           </div>
         </div>
-        <div class="form-grid cols-2" style="margin-top:14px">
+        <div class="form-grid cols-3" style="margin-top:14px">
           <div class="field"><label>Placa</label><input type="text" id="s-placa" placeholder="Ej. ABC-123-D" maxlength="20" style="text-transform:uppercase"/></div>
+          <div class="field"><label><span class="req">*</span> Número de Vale</label><input type="text" id="s-vale" placeholder="Folio del vale físico" maxlength="30" style="text-transform:uppercase"/></div>
           <div class="field"><label><span class="req">*</span> Metros cúbicos (m³)</label><input type="number" id="s-m3" placeholder="0.00" min="0" step="0.01"/></div>
         </div>
         <div class="field" style="margin-top:14px"><label>Observaciones</label>
@@ -589,6 +590,7 @@
               <th style="width:100px">Placa</th>
               <th style="width:65px">m³</th>
               <th>Observaciones</th>
+              <th style="width:100px">Vale</th>
             </tr>
             <tr class="filtros-row">
               <th></th>
@@ -608,6 +610,7 @@
               <th><input type="text" class="filtro-input" data-filtro="placa" placeholder="Filtrar"/></th>
               <th></th>
               <th><input type="text" class="filtro-input" data-filtro="obs" placeholder="Filtrar"/></th>
+              <th><input type="text" class="filtro-input" data-filtro="vale" placeholder="Filtrar"/></th>
             </tr></thead>
             <tbody id="h-body"></tbody>
           </table>
@@ -1036,7 +1039,7 @@ function limpiarE() {
   autoNow('e-fecha','e-hora');
 }
 function limpiarS() {
-  ['s-fecha','s-hora','s-volteo','s-placa','s-m3','s-obs']
+  ['s-fecha','s-hora','s-volteo','s-placa','s-vale','s-m3','s-obs']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('s-obs-ctr').textContent = '0/300';
   autoNow('s-fecha','s-hora');
@@ -1102,6 +1105,8 @@ async function registrarSalida() {
   if (!fecha) { toast('La fecha es obligatoria.'); return; }
   const m3 = parseFloat(document.getElementById('s-m3').value);
   if (!m3 || m3 <= 0) { toast('Los metros cúbicos son obligatorios y deben ser mayores a 0.'); return; }
+  const vale = document.getElementById('s-vale').value.trim().toUpperCase();
+  if (!vale) { toast('El número de vale es obligatorio.'); return; }
   const volteo = document.getElementById('s-volteo').value || 'VOLTEO';
   const btn = document.getElementById('btn-registrar-s');
   btn.disabled = true;
@@ -1116,6 +1121,7 @@ async function registrarSalida() {
         origen: '', colonia: volteo,
         vehiculo: 'VOLTEO',
         placa: document.getElementById('s-placa').value.trim().toUpperCase(),
+        vale: vale,
         m3: m3,
         obs: document.getElementById('s-obs').value.trim()
       })
@@ -2013,7 +2019,7 @@ function fechaDisplay(rawFecha) {
 
 // ── Historial: estado de filtros ───────────────────────────────
 let _historialRows = [];
-let _historialFiltros = { folio:'', tipo:'', fecha:'', pga:'', origen:'', nombre:'', telefono:'', calle:'', colonia:'', vehiculo:'', placa:'', obs:'', fdesde:'', fhasta:'' };
+let _historialFiltros = { folio:'', tipo:'', fecha:'', pga:'', origen:'', nombre:'', telefono:'', calle:'', colonia:'', vehiculo:'', placa:'', obs:'', vale:'', fdesde:'', fhasta:'' };
 
 function matchesFiltroHistorial(r) {
   const f = _historialFiltros;
@@ -2036,6 +2042,7 @@ function matchesFiltroHistorial(r) {
   if (!igual(r.vehiculo,   f.vehiculo)) return false;
   if (!contiene(r.placa,   f.placa))   return false;
   if (!contiene(r.obs,     f.obs))     return false;
+  if (!contiene(r.vale,    f.vale))    return false;
   return true;
 }
 
@@ -2058,6 +2065,7 @@ function filaHistorial(r) {
     '<td>' + (r.placa||'—') + '</td>' +
     '<td>' + (r.m3 ? parseFloat(r.m3).toFixed(2) : '—') + '</td>' +
     '<td style="max-width:200px;color:var(--text2)">' + (r.obs||'—') + '</td>' +
+    '<td class="mono">' + (r.vale||'—') + '</td>' +
   '</tr>';
 }
 
@@ -2071,7 +2079,7 @@ function aplicarFiltrosHistorial() {
     const msg = (!hayFiltro && _historialRows.length === 0)
       ? 'No hay registros aún.'
       : 'Ningún registro coincide con los filtros.';
-    body.innerHTML = '<tr><td colspan="17" style="text-align:center;color:var(--text2);padding:20px">' + msg + '</td></tr>';
+    body.innerHTML = '<tr><td colspan="18" style="text-align:center;color:var(--text2);padding:20px">' + msg + '</td></tr>';
   } else {
     body.innerHTML = filtered.map(filaHistorial).join('');
   }
