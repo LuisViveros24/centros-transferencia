@@ -234,6 +234,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
       Historial
     </button>
+    <button class="nav-item" onclick="goTo('tiempos',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 13"/></svg>
+      Tiempos
+    </button>
     <button class="nav-item" onclick="goTo('domicilios-hist',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       Historial domicilios
@@ -345,7 +349,10 @@
         <div class="card-label">Paso 2 — Datos del viaje de recolección</div>
         <div class="form-grid cols-3">
           <div class="field"><label><span class="req">*</span> Fecha</label><input type="date" id="s-fecha"/></div>
+          <div class="field"><label><span class="req">*</span> Hora de llegada</label><input type="time" id="s-llegada"/></div>
           <div class="field"><label>Hora de salida</label><input type="time" id="s-hora"/></div>
+        </div>
+        <div class="form-grid cols-3" style="margin-top:14px">
           <div class="field"><label>Tipo de volteo</label>
             <select id="s-volteo">
               <option value="">— Seleccionar —</option>
@@ -353,11 +360,12 @@
               <option>VOLTEO GRANDE</option><option>OTRO</option>
             </select>
           </div>
-        </div>
-        <div class="form-grid cols-3" style="margin-top:14px">
-          <div class="field"><label>Placa</label><input type="text" id="s-placa" placeholder="Ej. ABC-123-D" maxlength="20" style="text-transform:uppercase"/></div>
+          <div class="field"><label><span class="req">*</span> Placa</label><input type="text" id="s-placa" placeholder="Ej. ABC-123-D" maxlength="20" style="text-transform:uppercase"/></div>
           <div class="field"><label><span class="req">*</span> Número de Vale</label><input type="text" id="s-vale" placeholder="Folio del vale físico" maxlength="30" style="text-transform:uppercase"/></div>
+        </div>
+        <div class="form-grid cols-2" style="margin-top:14px">
           <div class="field"><label><span class="req">*</span> Metros cúbicos (m³)</label><input type="number" id="s-m3" placeholder="0.00" min="0" step="0.01"/></div>
+          <div class="field" style="display:flex;align-items:flex-end"><span style="font-size:12px;color:var(--text2)">El tiempo de llenado se calcula como hora de salida − hora de llegada.</span></div>
         </div>
         <div class="field" style="margin-top:14px"><label>Observaciones</label>
           <textarea id="s-obs" maxlength="300" placeholder="Notas del viaje..."
@@ -533,6 +541,59 @@
       </div><!-- /dash-sub-domicilios -->
     </div>
 
+    <!-- TIEMPOS -->
+    <div id="page-tiempos" class="page">
+      <div class="page-title">Tiempos de los volteos</div>
+      <div class="page-sub">Mide el ciclo de cada camión: tiempo de llenado (salida − llegada) y viaje redondo (ir a tirar y regresar).</div>
+
+      <div class="card" style="margin-bottom:12px;padding:10px 14px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.05em">Periodo:</span>
+          <button class="btn btn-ghost" style="padding:5px 12px;border-radius:20px;font-size:12px" onclick="setPeriodoTiempos('hoy')">Hoy</button>
+          <button class="btn btn-ghost" style="padding:5px 12px;border-radius:20px;font-size:12px" onclick="setPeriodoTiempos('semana')">Esta semana</button>
+          <button class="btn btn-ghost" style="padding:5px 12px;border-radius:20px;font-size:12px" onclick="setPeriodoTiempos('mes')">Este mes</button>
+          <button class="btn btn-ghost" style="padding:5px 12px;border-radius:20px;font-size:12px" onclick="setPeriodoTiempos('todo')">Todo</button>
+          <div style="display:flex;align-items:center;gap:6px;margin-left:4px">
+            <span style="font-size:12px;color:var(--text2)">Desde</span>
+            <input type="date" id="t-desde" style="width:auto"/>
+            <span style="font-size:12px;color:var(--text2)">Hasta</span>
+            <input type="date" id="t-hasta" style="width:auto"/>
+          </div>
+          <button class="btn btn-primary" style="padding:6px 14px;font-size:13px" onclick="renderTiempos()">Actualizar</button>
+        </div>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric-card"><div class="metric-label">Salidas (volteos)</div><div class="metric-value" id="t-salidas">—</div><div class="metric-sub">en el periodo</div></div>
+        <div class="metric-card blue"><div class="metric-label">Llenado promedio</div><div class="metric-value" id="t-llenado">—</div><div class="metric-sub" id="t-llenado-sub">salida − llegada</div></div>
+        <div class="metric-card green"><div class="metric-label">Viaje redondo promedio</div><div class="metric-value" id="t-redondo">—</div><div class="metric-sub" id="t-redondo-sub">ir a tirar y regresar</div></div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="card-label">Jornada por día (primer camión que llega / último que se va)</div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th>Fecha</th><th>Primera llegada</th><th>Última salida</th><th>Duración de jornada</th><th>Viajes</th>
+            </tr></thead>
+            <tbody id="t-jornada-body"><tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">—</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="card-label">Por camión (placa)</div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th>Placa</th><th>Viajes</th><th>Llenado promedio</th>
+            </tr></thead>
+            <tbody id="t-camion-body"><tr><td colspan="3" style="text-align:center;color:var(--text2);padding:20px">—</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- HISTORIAL -->
     <div id="page-historial" class="page">
       <div class="table-header">
@@ -591,6 +652,8 @@
               <th style="width:65px">m³</th>
               <th>Observaciones</th>
               <th style="width:100px">Vale</th>
+              <th style="width:65px">Llegada</th>
+              <th style="width:75px">Llenado</th>
             </tr>
             <tr class="filtros-row">
               <th></th>
@@ -611,6 +674,8 @@
               <th></th>
               <th><input type="text" class="filtro-input" data-filtro="obs" placeholder="Filtrar"/></th>
               <th><input type="text" class="filtro-input" data-filtro="vale" placeholder="Filtrar"/></th>
+              <th></th>
+              <th></th>
             </tr></thead>
             <tbody id="h-body"></tbody>
           </table>
@@ -920,7 +985,7 @@ function closeSidebar() {
 
 function goTo(page, btn) {
   // El rol captura no navega a las vistas de análisis (el backend las protege igual)
-  if (ROL !== 'admin' && (page === 'dashboard' || page === 'historial' || page === 'domicilios-hist' || page === 'plazos' || page === 'canalizados' || page === 'avance')) return;
+  if (ROL !== 'admin' && (page === 'dashboard' || page === 'historial' || page === 'tiempos' || page === 'domicilios-hist' || page === 'plazos' || page === 'canalizados' || page === 'avance')) return;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
@@ -932,6 +997,10 @@ function goTo(page, btn) {
     else renderDashboard();
   }
   if (page === 'historial') renderHistorial();
+  if (page === 'tiempos') {
+    if (!document.getElementById('t-desde').value && !document.getElementById('t-hasta').value) setPeriodoTiempos('semana');
+    else renderTiempos();
+  }
   if (page === 'domicilios-hist') renderDomicilios();
   if (page === 'plazos') renderPlazos();
   if (page === 'canalizados') renderCanalizados();
@@ -1003,6 +1072,60 @@ function rangoRapido(tipo) {
   return null;
 }
 
+// ── Tiempos (ciclo de los volteos) ─────────────────────────────
+function _fmtMin(m) {
+  if (m == null) return '—';
+  if (m < 60) return m + ' min';
+  const h = Math.floor(m / 60), mm = m % 60;
+  return h + 'h' + (mm ? ' ' + mm + 'm' : '');
+}
+function setPeriodoTiempos(tipo) {
+  const r = tipo === 'todo' ? { desde: '', hasta: '' } : rangoRapido(tipo);
+  if (!r) return;
+  document.getElementById('t-desde').value = r.desde;
+  document.getElementById('t-hasta').value = r.hasta;
+  renderTiempos();
+}
+async function renderTiempos() {
+  const desde = document.getElementById('t-desde').value;
+  const hasta = document.getElementById('t-hasta').value;
+  const p = new URLSearchParams();
+  if (desde) p.set('fdesde', desde);
+  if (hasta) p.set('fhasta', hasta);
+  let d;
+  try { d = await api('/api/tiempos' + (p.toString() ? '?' + p.toString() : '')); }
+  catch(e) { toast('Error al cargar los tiempos.'); return; }
+  document.getElementById('t-salidas').textContent = d.total_salidas;
+  document.getElementById('t-llenado').textContent = _fmtMin(d.llenado_prom);
+  document.getElementById('t-llenado-sub').textContent = d.con_llenado
+    ? (d.con_llenado + ' viajes · rango ' + _fmtMin(d.llenado_min) + '–' + _fmtMin(d.llenado_max))
+    : 'sin datos de llenado';
+  document.getElementById('t-redondo').textContent = _fmtMin(d.redondo_prom);
+  document.getElementById('t-redondo-sub').textContent = d.redondos
+    ? (d.redondos + ' viajes redondos · rango ' + _fmtMin(d.redondo_min) + '–' + _fmtMin(d.redondo_max))
+    : 'sin viajes redondos emparejados';
+  const jb = document.getElementById('t-jornada-body');
+  jb.innerHTML = d.jornadas.length
+    ? d.jornadas.map(j =>
+        '<tr>' +
+        '<td>' + fechaDisplay(j.fecha) + '</td>' +
+        '<td class="mono">' + (j.primera_llegada || '—') + '</td>' +
+        '<td class="mono">' + (j.ultima_salida || '—') + '</td>' +
+        '<td>' + _fmtMin(j.duracion_min) + '</td>' +
+        '<td>' + j.viajes + '</td>' +
+        '</tr>').join('')
+    : '<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">Sin salidas en el periodo.</td></tr>';
+  const cb = document.getElementById('t-camion-body');
+  cb.innerHTML = d.por_camion.length
+    ? d.por_camion.map(c =>
+        '<tr>' +
+        '<td class="mono">' + escHtml(c.placa) + '</td>' +
+        '<td>' + c.viajes + '</td>' +
+        '<td>' + _fmtMin(c.llenado_prom) + '</td>' +
+        '</tr>').join('')
+    : '<tr><td colspan="3" style="text-align:center;color:var(--text2);padding:20px">Sin datos por camión.</td></tr>';
+}
+
 function setRapido(tipo) {
   const r = rangoRapido(tipo);
   if (!r) return;  // tipo desconocido — no hacer nada
@@ -1042,7 +1165,7 @@ function limpiarE() {
   autoNow('e-fecha','e-hora');
 }
 function limpiarS() {
-  ['s-fecha','s-hora','s-volteo','s-placa','s-vale','s-m3','s-obs']
+  ['s-fecha','s-hora','s-llegada','s-volteo','s-placa','s-vale','s-m3','s-obs']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('s-obs-ctr').textContent = '0/300';
   autoNow('s-fecha','s-hora');
@@ -1110,6 +1233,10 @@ async function registrarSalida() {
   if (!m3 || m3 <= 0) { toast('Los metros cúbicos son obligatorios y deben ser mayores a 0.'); return; }
   const vale = document.getElementById('s-vale').value.trim().toUpperCase();
   if (!vale) { toast('El número de vale es obligatorio.'); return; }
+  const placa = document.getElementById('s-placa').value.trim().toUpperCase();
+  if (!placa) { toast('La placa es obligatoria.'); return; }
+  const horaLlegada = document.getElementById('s-llegada').value;
+  if (!horaLlegada) { toast('La hora de llegada es obligatoria.'); return; }
   const volteo = document.getElementById('s-volteo').value || 'VOLTEO';
   const btn = document.getElementById('btn-registrar-s');
   btn.disabled = true;
@@ -1120,10 +1247,11 @@ async function registrarSalida() {
       body: JSON.stringify({
         tipo: 'SALIDA', fecha,
         hora: document.getElementById('s-hora').value || '',
+        hora_llegada: horaLlegada,
         pga, detalle: volteo,
         origen: '', colonia: volteo,
         vehiculo: 'VOLTEO',
-        placa: document.getElementById('s-placa').value.trim().toUpperCase(),
+        placa: placa,
         vale: vale,
         m3: m3,
         obs: document.getElementById('s-obs').value.trim()
@@ -2052,6 +2180,14 @@ function matchesFiltroHistorial(r) {
   return true;
 }
 
+function _minHHMM(s) { const m = /^(\d{1,2}):(\d{2})/.exec(s || ''); return m ? (+m[1])*60 + (+m[2]) : null; }
+function _llenadoTxt(r) {
+  if (r.tipo !== 'SALIDA') return '—';
+  const a = _minHHMM(r.hora_llegada), b = _minHHMM(r.hora);
+  if (a == null || b == null) return '—';
+  let d = b - a; if (d < 0) d += 24*60;
+  return d + ' min';
+}
 function filaHistorial(r) {
   return '<tr>' +
     '<td style="text-align:center"><input type="checkbox" value="' + r.id + '" onchange="actualizarBarraAccion()"/></td>' +
@@ -2072,6 +2208,8 @@ function filaHistorial(r) {
     '<td>' + (r.m3 ? parseFloat(r.m3).toFixed(2) : '—') + '</td>' +
     '<td style="max-width:200px;color:var(--text2)">' + (r.obs||'—') + '</td>' +
     '<td class="mono">' + (r.vale||'—') + '</td>' +
+    '<td>' + (r.hora_llegada||'—') + '</td>' +
+    '<td class="mono">' + _llenadoTxt(r) + '</td>' +
   '</tr>';
 }
 
@@ -2083,7 +2221,7 @@ function pintarHistorial() {
   if (!_historialRows.length) {
     const hayFiltro = Object.values(_historialFiltros).some(v => v);
     const msg = hayFiltro ? 'Ningún registro coincide con los filtros.' : 'No hay registros aún.';
-    body.innerHTML = '<tr><td colspan="18" style="text-align:center;color:var(--text2);padding:20px">' + msg + '</td></tr>';
+    body.innerHTML = '<tr><td colspan="20" style="text-align:center;color:var(--text2);padding:20px">' + msg + '</td></tr>';
   } else {
     body.innerHTML = _historialRows.map(filaHistorial).join('');
   }

@@ -91,12 +91,26 @@ class TestM3Obligatorio:
 
     def test_salida_con_m3_ok(self, client):
         r = self._post(client, {'tipo': 'SALIDA', 'fecha': '2026-07-15',
-                                'pga': 'ESTERITO', 'm3': 14, 'vale': 'V-123'})
+                                'pga': 'ESTERITO', 'm3': 14, 'vale': 'V-123',
+                                'placa': 'XYZ-99', 'hora_llegada': '08:00'})
         assert r.status_code == 201
 
     def test_salida_sin_vale_devuelve_400(self, client):
         r = self._post(client, {'tipo': 'SALIDA', 'fecha': '2026-07-15',
-                                'pga': 'ESTERITO', 'm3': 14})
+                                'pga': 'ESTERITO', 'm3': 14,
+                                'placa': 'XYZ-99', 'hora_llegada': '08:00'})
+        assert r.status_code == 400
+
+    def test_salida_sin_placa_devuelve_400(self, client):
+        r = self._post(client, {'tipo': 'SALIDA', 'fecha': '2026-07-15',
+                                'pga': 'ESTERITO', 'm3': 14, 'vale': 'V-123',
+                                'hora_llegada': '08:00'})
+        assert r.status_code == 400
+
+    def test_salida_sin_hora_llegada_devuelve_400(self, client):
+        r = self._post(client, {'tipo': 'SALIDA', 'fecha': '2026-07-15',
+                                'pga': 'ESTERITO', 'm3': 14, 'vale': 'V-123',
+                                'placa': 'XYZ-99'})
         assert r.status_code == 400
 
 
@@ -123,10 +137,12 @@ class TestPlacaFormato:
     def test_entrada_sin_placas_especial_ok(self, client):
         assert self._post(client, entrada_valida(placa='SIN PLACAS')).status_code == 201
 
-    def test_salida_sin_placa_ok(self, client):
-        # El formato de placa solo aplica a entradas
+    def test_salida_placa_libre_ok(self, client):
+        # En salidas la placa es obligatoria pero sin formato estricto
+        # (la validación de 6-8 alfanuméricos solo aplica a entradas).
         r = self._post(client, {'tipo': 'SALIDA', 'fecha': '2026-07-15',
-                                'pga': 'ESTERITO', 'm3': 14, 'vale': 'V-123'})
+                                'pga': 'ESTERITO', 'm3': 14, 'vale': 'V-123',
+                                'placa': 'V-9', 'hora_llegada': '08:00'})
         assert r.status_code == 201
 
 
