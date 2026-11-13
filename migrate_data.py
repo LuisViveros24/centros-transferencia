@@ -54,6 +54,10 @@ try:
             cur.execute('''
                 ALTER TABLE registros ADD COLUMN IF NOT EXISTS vale TEXT
             ''')
+            # Hora de llegada del camión (la hora de salida ya va en 'hora')
+            cur.execute('''
+                ALTER TABLE registros ADD COLUMN IF NOT EXISTS hora_llegada TEXT
+            ''')
             # Índices para el historial (filtros/orden más rápidos)
             cur.execute("CREATE INDEX IF NOT EXISTS idx_registros_fecha ON registros(fecha)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_registros_tipo ON registros(tipo)")

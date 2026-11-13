@@ -31,6 +31,31 @@ def get_db():
     conn = psycopg2.connect(DATABASE_URL)
     return conn
 
+def _hhmm_a_min(s):
+    """Convierte 'HH:MM' a minutos del día; None si no es válida."""
+    m = re.match(r'^\s*(\d{1,2}):(\d{2})', str(s or ''))
+    if not m:
+        return None
+    return int(m.group(1)) * 60 + int(m.group(2))
+
+def _minutos_entre(h_ini, h_fin):
+    """Minutos entre dos horas 'HH:MM' (fin - ini). '' si falta alguna.
+    Si el resultado es negativo se asume cruce de medianoche."""
+    a = _hhmm_a_min(h_ini)
+    b = _hhmm_a_min(h_fin)
+    if a is None or b is None:
+        return ''
+    d = b - a
+    if d < 0:
+        d += 24 * 60
+    return d
+
+def _min_a_hhmm(m):
+    """Minutos del día a 'HH:MM'; None si es None."""
+    if m is None:
+        return None
+    return f'{m // 60:02d}:{m % 60:02d}'
+
 def init_db():
     """Solo para desarrollo local. En producción usar migrate_data.py."""
     conn = get_db()
@@ -56,11 +81,15 @@ def init_db():
                         m3        REAL DEFAULT 0,
                         obs       TEXT,
                         vale      TEXT,
+                        hora_llegada TEXT,
                         creado_en TIMESTAMP DEFAULT NOW()
                     )
                 ''')
                 cur.execute(
                     "ALTER TABLE registros ADD COLUMN IF NOT EXISTS vale TEXT"
+                )
+                cur.execute(
+                    "ALTER TABLE registros ADD COLUMN IF NOT EXISTS hora_llegada TEXT"
                 )
                 # Índices para el historial (filtros/orden más rápidos)
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_registros_fecha ON registros(fecha)")
@@ -358,10 +387,14 @@ def crear_registro():
         if placa_norm != 'SINPLACAS' and not (6 <= len(placa_norm) <= 8):
             return jsonify({'error': 'Placa inválida: escribe de 6 a 8 letras/números, o "SIN PLACAS"'}), 400
 
-    # Número de vale obligatorio en salidas (folio del vale físico).
+    # Salidas: vale, placa y hora de llegada obligatorios (para medir ciclos).
     if d.get('tipo', 'ENTRADA') == 'SALIDA':
         if not (d.get('vale') or '').strip():
             return jsonify({'error': 'El número de vale es obligatorio en las salidas.'}), 400
+        if not (d.get('placa') or '').strip():
+            return jsonify({'error': 'La placa es obligatoria en las salidas.'}), 400
+        if not (d.get('hora_llegada') or '').strip():
+            return jsonify({'error': 'La hora de llegada es obligatoria en las salidas.'}), 400
 
     conn = get_db()
     try:
@@ -370,8 +403,8 @@ def crear_registro():
                 folio = next_folio(d.get('tipo', 'ENTRADA'), cur)
                 cur.execute('''
                     INSERT INTO registros
-                    (folio,tipo,fecha,hora,pga,detalle,origen,nombre,telefono,calle,colonia,vehiculo,placa,m3,obs,vale)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    (folio,tipo,fecha,hora,pga,detalle,origen,nombre,telefono,calle,colonia,vehiculo,placa,m3,obs,vale,hora_llegada)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ''', (
                     folio,
                     d.get('tipo', 'ENTRADA'),
@@ -388,7 +421,8 @@ def crear_registro():
                     d.get('placa', ''),
                     m3,
                     d.get('obs', ''),
-                    (d.get('vale', '') or '').strip()
+                    (d.get('vale', '') or '').strip(),
+                    (d.get('hora_llegada', '') or '').strip()
                 ))
     finally:
         conn.close()
@@ -1568,8 +1602,9 @@ def export_excel():
     ws = wb.active
     ws.title = 'Registros'
 
-    headers = ['ID', 'Folio', 'Tipo', 'Fecha', 'Hora', 'PGA', 'Detalle/Carga',
-               'Origen', 'Nombre', 'Teléfono', 'Calle', 'Colonia', 'Vehículo', 'Placa', 'm³', 'Observaciones', 'Núm. de Vale', 'Registrado']
+    headers = ['ID', 'Folio', 'Tipo', 'Fecha', 'Hora salida', 'PGA', 'Detalle/Carga',
+               'Origen', 'Nombre', 'Teléfono', 'Calle', 'Colonia', 'Vehículo', 'Placa', 'm³', 'Observaciones',
+               'Núm. de Vale', 'Hora llegada', 'Llenado (min)', 'Registrado']
     header_fill = PatternFill(fill_type='solid', fgColor='1a6fc4')
     header_font = Font(bold=True, color='FFFFFF')
     for col, h in enumerate(headers, 1):
@@ -1584,10 +1619,12 @@ def export_excel():
             row['pga'], row['detalle'], row['origen'], row['nombre'],
             row.get('telefono', ''), row['calle'], row['colonia'],
             row['vehiculo'], row['placa'], row['m3'], row['obs'],
-            row.get('vale', ''), row['creado_en']
+            row.get('vale', ''), row.get('hora_llegada', ''),
+            _minutos_entre(row.get('hora_llegada'), row['hora']) if row['tipo'] == 'SALIDA' else '',
+            row['creado_en']
         ])
 
-    col_widths = [6, 10, 8, 12, 8, 18, 18, 16, 22, 14, 18, 18, 18, 12, 8, 30, 14, 18]
+    col_widths = [6, 10, 8, 12, 10, 18, 18, 16, 22, 14, 18, 18, 18, 12, 8, 30, 14, 11, 12, 18]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
 
@@ -1597,6 +1634,111 @@ def export_excel():
     fname = f"CT_Viajes_{date.today()}.xlsx"
     return send_file(buf, as_attachment=True, download_name=fname,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@app.route('/api/tiempos', methods=['GET'])
+@requiere_admin
+def api_tiempos():
+    """Mediciones de ciclo de los volteos (salidas) en un rango de fechas:
+    tiempo de llenado (salida - llegada), viaje redondo (entre que un camión
+    sale y vuelve a llegar, mismo día y placa) y jornada por día."""
+    from collections import defaultdict
+    fdesde = (request.args.get('fdesde') or '').strip()
+    fhasta = (request.args.get('fhasta') or '').strip()
+    where = ["tipo = 'SALIDA'"]
+    params = []
+    if fdesde:
+        where.append('fecha >= %s'); params.append(fdesde)
+    if fhasta:
+        where.append('fecha <= %s'); params.append(fhasta)
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    'SELECT fecha, hora, hora_llegada, placa, pga FROM registros WHERE '
+                    + ' AND '.join(where), params)
+                rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    salidas = []
+    for r in rows:
+        f = r['fecha']
+        salidas.append({
+            'fecha': f.isoformat() if hasattr(f, 'isoformat') else str(f),
+            'hll': r.get('hora_llegada'),
+            'hsa': r.get('hora'),
+            'placa': (r.get('placa') or '').strip().upper(),
+            'llenado': None,
+        })
+    # Tiempo de llenado por viaje
+    llenados = []
+    for s in salidas:
+        d = _minutos_entre(s['hll'], s['hsa'])
+        if d != '':
+            s['llenado'] = d
+            llenados.append(d)
+    # Viaje redondo: por placa y mismo día, entre viajes consecutivos
+    redondos = []
+    porgrupo = defaultdict(list)
+    for s in salidas:
+        if s['placa']:
+            porgrupo[(s['placa'], s['fecha'])].append(s)
+    for lst in porgrupo.values():
+        lst.sort(key=lambda s: (_hhmm_a_min(s['hsa']) if _hhmm_a_min(s['hsa']) is not None else 0))
+        for i in range(len(lst) - 1):
+            d = _minutos_entre(lst[i]['hsa'], lst[i + 1]['hll'])
+            if d != '':
+                redondos.append(d)
+    # Jornada por día
+    pordia = defaultdict(list)
+    for s in salidas:
+        pordia[s['fecha']].append(s)
+    jornadas = []
+    for fecha in sorted(pordia):
+        lst = pordia[fecha]
+        lleg = [_hhmm_a_min(s['hll']) for s in lst if _hhmm_a_min(s['hll']) is not None]
+        sal = [_hhmm_a_min(s['hsa']) for s in lst if _hhmm_a_min(s['hsa']) is not None]
+        prim = min(lleg) if lleg else None
+        ult = max(sal) if sal else None
+        jornadas.append({
+            'fecha': fecha,
+            'primera_llegada': _min_a_hhmm(prim),
+            'ultima_salida': _min_a_hhmm(ult),
+            'duracion_min': (ult - prim) if (prim is not None and ult is not None and ult >= prim) else None,
+            'viajes': len(lst),
+        })
+    # Por camión
+    porplaca = defaultdict(list)
+    for s in salidas:
+        if s['placa']:
+            porplaca[s['placa']].append(s)
+    por_camion = []
+    for placa, lst in porplaca.items():
+        ll = [s['llenado'] for s in lst if s['llenado'] is not None]
+        por_camion.append({
+            'placa': placa,
+            'viajes': len(lst),
+            'llenado_prom': round(sum(ll) / len(ll)) if ll else None,
+        })
+    por_camion.sort(key=lambda x: -x['viajes'])
+
+    def prom(xs):
+        return round(sum(xs) / len(xs)) if xs else None
+
+    return jsonify({
+        'total_salidas': len(salidas),
+        'con_llenado': len(llenados),
+        'llenado_prom': prom(llenados),
+        'llenado_min': min(llenados) if llenados else None,
+        'llenado_max': max(llenados) if llenados else None,
+        'redondos': len(redondos),
+        'redondo_prom': prom(redondos),
+        'redondo_min': min(redondos) if redondos else None,
+        'redondo_max': max(redondos) if redondos else None,
+        'jornadas': jornadas,
+        'por_camion': por_camion[:50],
+    })
 
 if __name__ == '__main__':
     init_db()
