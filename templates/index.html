@@ -220,7 +220,8 @@
       Salida
       <span class="nbadge" id="nav-badge-out" style="background:var(--green)">0</span>
     </button>
-    <button class="nav-item" onclick="goTo('domicilio',this)">
+    <!-- OCULTO (enfoque PGA): módulo Domicilios/Operativo. Código y datos intactos; solo se oculta el acceso. -->
+    <button class="nav-item" onclick="goTo('domicilio',this)" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       Domicilios
       <span class="nbadge" id="nav-badge-dom" style="background:#8b5cf6">0</span>
@@ -238,19 +239,21 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 13"/></svg>
       Tiempos
     </button>
-    <button class="nav-item" onclick="goTo('domicilios-hist',this)">
+    <!-- OCULTO (enfoque PGA): Historial domicilios, Plazos, Canalizados a Ingresos y Avance polígonos.
+         Código, rutas y datos intactos; solo se oculta el acceso en el menú. -->
+    <button class="nav-item" onclick="goTo('domicilios-hist',this)" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       Historial domicilios
     </button>
-    <button class="nav-item" onclick="goTo('plazos',this)">
+    <button class="nav-item" onclick="goTo('plazos',this)" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
       Plazos
     </button>
-    <button class="nav-item" onclick="goTo('canalizados',this)">
+    <button class="nav-item" onclick="goTo('canalizados',this)" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h13l-3-3M21 17H8l3 3"/><rect x="2" y="10" width="6" height="4" rx="1"/></svg>
       Canalizados a Ingresos
     </button>
-    <button class="nav-item" onclick="goTo('avance',this)">
+    <button class="nav-item" onclick="goTo('avance',this)" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
       Avance polígonos
     </button>
@@ -382,9 +385,10 @@
     <!-- DASHBOARD -->
     <div id="page-dashboard" class="page">
       <div class="page-title">Dashboard</div>
-      <div class="page-sub">Selecciona la vista: flujo de viajes o control de domicilios.</div>
+      <div class="page-sub">Flujo de viajes de los PGA.</div>
 
-      <div class="subtabs" style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
+      <!-- OCULTO (enfoque PGA): sub-vista Domicilios del tablero. -->
+      <div class="subtabs" style="display:none;gap:8px;margin-bottom:18px;flex-wrap:wrap">
         <button class="btn btn-primary" id="subtab-viajes" onclick="dashSub('viajes')">Viajes</button>
         <button class="btn btn-ghost" id="subtab-domicilios" onclick="dashSub('domicilios')">Domicilios</button>
       </div>
